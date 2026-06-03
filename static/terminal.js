@@ -176,14 +176,15 @@ function tokenQs() {
 // ---------- 令牌门 → 落地页 ----------
 async function fetchOptions(tok) {
   const r = await fetch(`/api/project-dirs?token=${encodeURIComponent(tok)}`);
-  if (r.status === 401) throw new Error("令牌错误，请重试");
-  if (!r.ok) throw new Error("加载失败");
+  if (r.status === 401) throw new Error(t("gate_err_invalid"));
+  if (!r.ok) throw new Error(t("gate_err_load"));
   const dirs = await r.json();
   const models = await fetch(`/api/models?token=${encodeURIComponent(tok)}`).then((r) => r.json());
   return { dirs, models };
 }
 
 function populate({ dirs, models }) {
+  _lastOpts = { dirs, models };
   _extraModels = models || [];
   const modelSel = $("model");
   modelSel.style.display = "";
@@ -222,7 +223,7 @@ $("token-input").addEventListener("keydown", (e) => {
     enter(init).catch(() => {
       if (saved) localStorage.removeItem("agent_token");
       $("token-input").value = init;
-      $("gate-err").textContent = saved ? "已保存令牌已失效，请重新输入" : "令牌错误，请重试";
+      $("gate-err").textContent = saved ? t("gate_err_expired") : t("gate_err_invalid");
     });
   }
 }
@@ -239,7 +240,7 @@ async function patchSession(sid, body) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!r.ok) throw new Error("更新失败");
+  if (!r.ok) throw new Error(t("update_failed"));
 }
 
 // ---------- 自定义确认对话框 ----------
@@ -250,8 +251,8 @@ function showConfirm(msg) {
     overlay.innerHTML = `<div class="confirm-card">
       <div class="confirm-msg">${esc(msg)}</div>
       <div class="confirm-actions">
-        <button class="confirm-cancel">取消</button>
-        <button class="confirm-ok">删除</button>
+        <button class="confirm-cancel">${t("confirm_cancel")}</button>
+        <button class="confirm-ok">${t("confirm_ok")}</button>
       </div>
     </div>`;
     document.body.appendChild(overlay);
@@ -275,7 +276,7 @@ function fmtWhen(iso) {
   const now = new Date();
   const sameDay = d.toDateString() === now.toDateString();
   const hm = d.toTimeString().slice(0, 5);
-  if (sameDay) return `今天 ${hm}`;
+  if (sameDay) return `${t("today_prefix")} ${hm}`;
   const md = `${d.getMonth() + 1}/${d.getDate()}`;
   return `${md} ${hm}`;
 }
@@ -293,11 +294,11 @@ async function renderHistory() {
   try {
     groups = await fetch(`/api/sessions${tokenQs()}`).then((r) => r.json());
   } catch (e) {
-    box.innerHTML = `<div class="empty">历史加载失败</div>`;
+    box.innerHTML = `<div class="empty">${t("err_history")}</div>`;
     return;
   }
   if (!groups.length) {
-    box.innerHTML = `<div class="empty">暂无历史会话</div>`;
+    box.innerHTML = `<div class="empty">${t("empty_history")}</div>`;
     return;
   }
 
@@ -313,25 +314,25 @@ async function renderHistory() {
         <span class="when">${esc(fmtWhen(s.last_active_at))}</span>
         <select class="m-select" data-sid="${esc(s.sid)}">${modelOpts}</select>
         <div class="tag-input-wrap">
-          <textarea class="tag-input" placeholder="未命名" rows="1"
+          <textarea class="tag-input" placeholder="${t('sess_placeholder')}" rows="1"
             data-sid="${esc(s.sid)}" data-orig="${esc(tag)}">${esc(tag)}</textarea>
           <div class="tag-btns">
-            <button class="pk-ok">保存</button>
-            <button class="pk-cancel">取消</button>
+            <button class="pk-ok">${t("sess_save")}</button>
+            <button class="pk-cancel">${t("sess_cancel")}</button>
           </div>
         </div>
         <span class="spacer"></span>
         <button class="act" data-act="${esc(s.sid)}" data-cwd="${esc(s.cwd)}"
-          data-cmd="${esc(s.command_id)}" data-model="${esc(s.model_id || "")}">激活</button>
+          data-cmd="${esc(s.command_id)}" data-model="${esc(s.model_id || "")}">${t("sess_activate")}</button>
         <div class="more-wrap">
-          <button class="more-btn">更多 ▾</button>
+          <button class="more-btn">${t("sess_more")}</button>
           <div class="more-drop hidden">
-            <button class="mi-del" data-sid="${esc(s.sid)}">删除</button>
+            <button class="mi-del" data-sid="${esc(s.sid)}">${t("sess_delete")}</button>
           </div>
         </div>
       </div>`;
     }).join("");
-    const label = g.cwd || "（默认目录）";
+    const label = g.cwd || t("default_dir");
     return `<div class="grp">
       <div class="grp-head" data-grp="${gi}">
         <span class="caret">▾</span>
@@ -341,9 +342,9 @@ async function renderHistory() {
       <div class="grp-body">
         <div class="sess-hdr">
           <span class="hdr-dot"></span>
-          <span class="hdr-when">时间</span>
-          <span class="hdr-model">模型</span>
-          <span class="hdr-tag">备注</span>
+          <span class="hdr-when">${t("hdr_time")}</span>
+          <span class="hdr-model">${t("hdr_model")}</span>
+          <span class="hdr-tag">${t("hdr_note")}</span>
         </div>
         ${rows}
       </div>
@@ -453,7 +454,7 @@ async function renderHistory() {
   box.querySelectorAll(".mi-del").forEach((item) => {
     item.onclick = async () => {
       closeAllMenus();
-      const confirmed = await showConfirm("确定要删除此会话吗？");
+      const confirmed = await showConfirm(t("confirm_delete"));
       if (!confirmed) return;
       await fetch(`/api/sessions/${encodeURIComponent(item.dataset.sid)}${tokenQs()}`, { method: "DELETE" });
       renderHistory();
@@ -476,14 +477,16 @@ function cfgStatus(text, color) {
   $("cfg-status").style.color = color || "#888";
 }
 
-const BUILTIN_MODEL_ROW = `<tr class="cfg-model-row builtin" data-builtin="1" data-id="1">
+function builtinModelRow() {
+  return `<tr class="cfg-model-row builtin" data-builtin="1" data-id="1">
     <td style="text-align:center;color:#555;font-size:12px;">1</td>
-    <td><input class="m-name" value="官方 Claude（本机登录）" disabled /></td>
+    <td><input class="m-name" value="${esc(t("default_model"))}" disabled /></td>
     <td><input class="m-model" placeholder="api_model" value="" disabled /></td>
     <td><input class="m-base" value="" disabled /></td>
     <td><input class="m-auth" value="" disabled /></td>
-    <td><span class="cfg-builtin-tag">内置</span></td>
+    <td><span class="cfg-builtin-tag">${t("builtin_tag")}</span></td>
   </tr>`;
+}
 
 function nextModelId() {
   const rows = [...$("cfg-models").querySelectorAll(".cfg-model-row:not([data-builtin])")];
@@ -500,7 +503,7 @@ function modelRowHtml(m) {
     <td><input class="m-model" placeholder="api_model" value="${esc(m.model)}" /></td>
     <td><input class="m-base" placeholder="base_url" value="${esc(m.base_url)}" /></td>
     <td><input class="m-auth" placeholder="auth_token" value="${esc(m.auth_token)}" /></td>
-    <td><button class="m-del">删除</button></td>
+    <td><button class="m-del">${t("model_del")}</button></td>
   </tr>`;
 }
 
@@ -511,12 +514,13 @@ function bindModelDel() {
 }
 
 function renderModels(models) {
+  _lastCfgModels = models || [];
   const numbered = (models || []).map((m, i) => ({ ...m, id: String(i + 2) }));
   $("cfg-models").innerHTML = `<table class="cfg-model-table">
     <thead><tr>
       <th>#</th><th>name</th><th>api_model</th><th>base_url</th><th>auth_token</th><th></th>
     </tr></thead>
-    <tbody>${BUILTIN_MODEL_ROW}${numbered.map(modelRowHtml).join("")}</tbody>
+    <tbody>${builtinModelRow()}${numbered.map(modelRowHtml).join("")}</tbody>
   </table>`;
   bindModelDel();
 }
@@ -525,15 +529,16 @@ async function showConfig() {
   $("home").classList.add("hidden");
   $("termview").classList.add("hidden");
   $("configview").classList.remove("hidden");
-  cfgStatus("加载中…");
+  cfgStatus(t("cfg_loading"));
   const cfg = await fetch(`/api/config${tokenQs()}`).then((r) => {
-    if (!r.ok) throw new Error("加载配置失败");
+    if (!r.ok) throw new Error(t("cfg_load_err"));
     return r.json();
   });
   $("cfg-claude-bin").value = cfg.claude_bin || "";
   $("cfg-token").value = cfg.access_token || "";
   $("cfg-dirs").value = (cfg.project_dirs || []).join("\n");
   renderModels(cfg.models);
+  _lastCfgModels = cfg.models || [];
   cfgStatus("");
 }
 
@@ -562,22 +567,22 @@ $("cfg-add-model").onclick = () => {
 };
 
 $("cfg-save").onclick = async () => {
-  cfgStatus("保存中…");
+  cfgStatus(t("cfg_saving"));
   try {
     const r = await fetch(`/api/config${tokenQs()}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(collectConfig()),
     });
-    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || "保存失败");
-    cfgStatus("已保存", "#4caf50");
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || t("cfg_save_err"));
+    cfgStatus(t("cfg_saved"), "#4caf50");
   } catch (e) {
     cfgStatus(e.message, "#e57373");
   }
 };
 
 $("cfg-apply").onclick = async () => {
-  cfgStatus("应用中…");
+  cfgStatus(t("cfg_applying"));
   const data = collectConfig();
   try {
     const r = await fetch(`/api/config/apply${tokenQs()}`, {
@@ -585,19 +590,20 @@ $("cfg-apply").onclick = async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || "应用失败");
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || t("cfg_apply_err"));
     if (data.access_token !== token) token = data.access_token;
     try { populate(await fetchOptions(token)); } catch (e) {}
-    cfgStatus("已应用生效", "#4caf50");
+    cfgStatus(t("cfg_applied"), "#4caf50");
   } catch (e) {
     cfgStatus(e.message, "#e57373");
   }
 };
 
 // ---------- 终端连接 ----------
-function setStatus(text, color) {
-  $("status").textContent = text;
-  $("status").style.color = color || "#888";
+function setStatus(key, color) {
+  _statusState = { key, color: color || "" };
+  $("status").textContent = t(key);
+  $("status").style.color = _statusState.color;
 }
 
 function send(obj) {
@@ -615,7 +621,7 @@ function connect(opts) {
   ws.binaryType = "arraybuffer";
 
   ws.onopen = () => {
-    setStatus(opts.resume ? "已连接（恢复会话）" : "已连接", "#4caf50");
+    setStatus(opts.resume ? "connected_resume" : "connected", "#4caf50");
     fit.fit();
     send({
       type: "spawn",
@@ -630,14 +636,14 @@ function connect(opts) {
   ws.onmessage = (ev) => {
     if (typeof ev.data === "string") {
       const msg = JSON.parse(ev.data);
-      if (msg.type === "spawn_error") term.write(`\r\n[启动失败] ${msg.error}\r\n`);
-      if (msg.type === "closed") setStatus("会话已结束", "#e57373");
+      if (msg.type === "spawn_error") term.write(`\r\n[${t("spawn_error")}] ${msg.error}\r\n`);
+      if (msg.type === "closed") setStatus("session_ended", "#e57373");
       return;
     }
     term.write(new Uint8Array(ev.data));
   };
   ws.onclose = (ev) => {
-    setStatus(ev.code === 4003 ? "令牌无效" : "已断开", "#e57373");
+    setStatus(ev.code === 4003 ? "token_invalid" : "disconnected", "#e57373");
   };
 }
 
