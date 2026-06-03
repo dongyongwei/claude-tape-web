@@ -23,7 +23,7 @@ def resolve_access_token(cfg: ServeConfig) -> str:
     """Determine the access token for this run.
 
     Priority: ACCESS_TOKEN env var > saved token > randomly generated.
-    When generating randomly, prompt in an interactive terminal for customisation and persistence.
+    When generating randomly, prompt in an interactive terminal for customization and persistence.
     """
     if cfg.access_token:
         return cfg.access_token
