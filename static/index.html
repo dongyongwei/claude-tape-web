@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>agent_win_serve</title>
+  <link rel="stylesheet" href="/static/vendor/xterm.css" />
+  <style>
+    /* ── Design Tokens — macOS Light ────────────────────────── */
+    :root {
+      --bg:       #f5f5f7;
+      --s1:       #ffffff;
+      --s2:       #f2f2f5;
+      --s3:       #e8e8ed;
+      --b:        rgba(0,0,0,.07);
+      --bm:       rgba(0,0,0,.12);
+      --t1:       #1d1d1f;
+      --t2:       #6e6e73;
+      --t3:       #aeaeb2;
+      --blue:     #0071e3;
+      --green:    #28a745;
+      --red:      #ff3b30;
+      --r:        12px;
+      --rsm:      8px;
+      --rxs:      6px;
+      --card-shadow: 0 1px 4px rgba(0,0,0,.08), 0 0 0 1px rgba(0,0,0,.05);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--t1);
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    .hidden { display: none !important; }
+
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(0,0,0,.15); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,.25); }
+
+    /* ── Token Gate ─────────────────────────────────────────── */
+    #gate {
+      position: fixed; inset: 0; z-index: 10;
+      background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .gate-box {
+      width: 340px; max-width: 90vw;
+      background: var(--s1);
+      border-radius: var(--r);
+      padding: 28px 24px;
+      box-shadow: var(--card-shadow);
+      animation: fadeUp .22s cubic-bezier(.16,1,.3,1);
+    }
+    .gate-title {
+      font-size: 16px; font-weight: 600; letter-spacing: -.015em;
+      color: var(--t1); text-align: center; margin-bottom: 4px;
+    }
+    .gate-sub {
+      font-size: 12px; color: var(--t3); text-align: center; margin-bottom: 20px;
+    }
+    .gate-box input[type="password"] {
+      width: 100%; background: var(--s2); color: var(--t1);
+      border: 1px solid var(--bm); border-radius: var(--rsm);
+      padding: 10px 12px; font-size: 13px; outline: none; margin-bottom: 10px;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .gate-box input[type="password"]:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(0,113,227,.15);
+    }
+    .gate-remember {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 12px; color: var(--t2); margin-bottom: 14px; cursor: pointer;
+      user-select: none;
+    }
+    .gate-remember input[type="checkbox"] {
+      width: auto; margin: 0; accent-color: var(--blue); cursor: pointer;
+    }
+    #enter {
+      width: 100%; background: var(--blue); color: #fff; border: none;
+      border-radius: var(--rsm); padding: 10px; font-size: 13px;
+      font-weight: 500; cursor: pointer;
+      transition: filter .15s, transform .1s;
+    }
+    #enter:hover  { filter: brightness(1.1); }
+    #enter:active { transform: scale(.98); filter: brightness(.95); }
+    #gate-err { color: var(--red); font-size: 12px; min-height: 18px; margin-top: 10px; text-align: center; }
+
+    /* ── Home ───────────────────────────────────────────────── */
+    #home {
+      position: fixed; inset: 0; z-index: 5;
+      overflow-y: auto; background: var(--bg);
+    }
+    .home-wrap { max-width: 760px; margin: 0 auto; padding: 28px 20px 48px; }
+
+    .sec-label {
+      font-size: 10.5px; font-weight: 600; letter-spacing: .07em;
+      text-transform: uppercase; color: var(--t3);
+      padding: 0 4px; margin-bottom: 8px; margin-top: 26px;
+    }
+    .sec-label:first-child { margin-top: 0; }
+
+    .home-card {
+      background: var(--s1); border-radius: var(--r);
+      box-shadow: var(--card-shadow); padding: 14px 16px;
+    }
+    .new-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    .new-row select {
+      background: var(--s2); color: var(--t1);
+      border: 1px solid var(--bm); border-radius: var(--rxs);
+      padding: 7px 10px; font-size: 12px; outline: none; cursor: pointer;
+      transition: border-color .15s; appearance: auto;
+    }
+    .new-row select:focus { border-color: var(--blue); }
+
+    #start {
+      background: var(--blue); color: #fff; border: none;
+      border-radius: var(--rxs); padding: 7px 18px; font-size: 12px;
+      font-weight: 500; cursor: pointer; transition: filter .15s;
+    }
+    #start:hover { filter: brightness(1.1); }
+
+    #config {
+      background: var(--s2); color: var(--t2);
+      border: 1px solid var(--bm); border-radius: var(--rxs);
+      padding: 7px 14px; font-size: 12px; cursor: pointer;
+      transition: background .13s, color .13s;
+    }
+    #config:hover { background: var(--s3); color: var(--t1); }
+
+    /* History groups */
+    .grp { margin-bottom: 8px; }
+    .grp-head {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 10px; border-radius: var(--rsm);
+      cursor: pointer; user-select: none; transition: background .12s;
+    }
+    .grp-head:hover { background: rgba(0,0,0,.04); }
+    .grp-head .caret { color: var(--t3); font-size: 10px; width: 10px; text-align: center; }
+    .grp-head .path  { color: var(--t2); font-size: 12px; word-break: break-all; }
+    .grp-head .count {
+      margin-left: auto; font-size: 10.5px; color: var(--t3);
+      background: var(--s3); border-radius: 20px; padding: 1px 8px;
+    }
+
+    .grp-body {
+      background: var(--s1); border-radius: var(--rsm);
+      box-shadow: var(--card-shadow);
+      /* avoid overflow:hidden so dropdowns can overflow; use per-row border-radius instead */
+    }
+
+    /* Session row */
+    .sess {
+      display: flex; align-items: center; gap: 0;
+      padding: 8px 12px; font-size: 12px;
+      border-bottom: 1px solid var(--b);
+      transition: background .1s; position: relative;
+    }
+    .sess:last-child { border-bottom: none; }
+    .sess:hover { background: rgba(0,0,0,.025); }
+    /* first/last row radius instead of overflow:hidden clip (sess-hdr is first child, use adjacent selector) */
+    .grp-body .sess-hdr + .sess { border-radius: var(--rsm) var(--rsm) 0 0; }
+    .grp-body .sess:last-child  { border-radius: 0 0 var(--rsm) var(--rsm); }
+    .grp-body .sess:last-child:is(.sess-hdr + .sess) { border-radius: var(--rsm); }
+
+    /* fixed column widths — align across rows */
+    .sess .dot {
+      width: 7px; height: 7px;
+      flex: none; border-radius: 50%;
+    }
+    .sess .dot.active { background: var(--green); box-shadow: 0 0 4px rgba(40,167,69,.4); }
+    .sess .dot.closed { background: var(--t3); }
+
+    .sess .when {
+      width: 88px; flex: none; padding-right: 8px;
+      color: var(--t2); font-size: 11px; font-variant-numeric: tabular-nums;
+    }
+    .m-select {
+      width: 150px; flex: none; margin-right: 4px;
+      background: transparent; color: var(--blue);
+      border: 1px solid transparent; border-radius: var(--rxs);
+      padding: 2px 4px; font-size: 11px; outline: none;
+      cursor: pointer; appearance: auto;
+      transition: background .12s, border-color .12s;
+    }
+    .m-select:hover { background: var(--s2); border-color: var(--bm); }
+    .m-select:focus { background: var(--s2); border-color: var(--blue); }
+    .tag-input-wrap {
+      flex: 1; min-width: 0; padding-right: 4px;
+      display: flex; align-items: flex-start; gap: 4px;
+    }
+    .tag-input {
+      flex: 1; min-width: 0;
+      background: transparent; color: var(--t2);
+      border: 1px solid transparent; border-radius: var(--rxs);
+      padding: 2px 6px; font-size: 11px; outline: none;
+      resize: none; overflow: hidden;
+      line-height: 1.5; font-family: inherit;
+      display: block;
+      transition: border-color .15s, background .15s, color .15s;
+    }
+    .tag-input::placeholder { color: var(--t3); }
+    .tag-input:hover { background: var(--s2); border-color: var(--bm); }
+    .tag-input:focus {
+      background: var(--s1); border-color: var(--blue); color: var(--t1);
+      box-shadow: 0 0 0 2px rgba(0,113,227,.08);
+    }
+    .tag-btns { display: none; gap: 4px; flex: none; padding-top: 1px; }
+    .tag-btns.visible { display: flex; }
+    .sess .spacer { flex-shrink: 0; margin-left: auto; }
+
+    /* Session column header */
+    .sess-hdr {
+      display: flex; align-items: center; gap: 0;
+      padding: 6px 12px 4px;
+      font-size: 10px; font-weight: 600; letter-spacing: .07em;
+      text-transform: uppercase; color: var(--t3);
+    }
+    .sess-hdr .hdr-dot  { width: 7px; flex: none; }
+    .sess-hdr .hdr-when { width: 88px; flex: none; padding-right: 8px; }
+    .sess-hdr .hdr-model { width: 150px; flex: none; margin-right: 4px; }
+    .sess-hdr .hdr-tag  { flex: 1; min-width: 0; }
+
+    /* Session buttons — always visible */
+    .sess button {
+      flex: none;
+      background: var(--s2); color: var(--t2);
+      border: 1px solid var(--bm); border-radius: var(--rxs);
+      padding: 3px 9px; font-size: 11px; cursor: pointer; white-space: nowrap;
+      transition: background .12s, border-color .12s, color .12s;
+    }
+    .sess button:hover { background: var(--s3); color: var(--t1); }
+
+    .sess button.act {
+      background: var(--green); color: #fff;
+      border-color: transparent; font-weight: 500;
+    }
+    .sess button.act:hover { filter: brightness(1.08); }
+
+    /* more dropdown */
+    .more-wrap { position: relative; flex: none; margin-left: 6px; }
+    .more-btn {
+      background: var(--s2); color: var(--t2);
+      border: 1px solid var(--bm); border-radius: var(--rxs);
+      padding: 3px 9px; font-size: 11px; cursor: pointer;
+      transition: background .12s, color .12s;
+    }
+    .more-btn:hover { background: var(--s3); color: var(--t1); }
+
+    .more-drop {
+      position: absolute; right: 0; top: calc(100% + 5px); z-index: 9999;
+      background: var(--s1);
+      border: 1px solid var(--bm);
+      border-radius: var(--rsm);
+      box-shadow: 0 6px 24px rgba(0,0,0,.12), 0 1px 4px rgba(0,0,0,.07);
+      min-width: 108px; padding: 4px;
+    }
+    /* override .sess button base for items inside dropdown */
+    .more-drop button {
+      display: block; width: 100%; text-align: left;
+      background: transparent; color: var(--t1);
+      border: none; border-radius: var(--rxs);
+      padding: 6px 10px; font-size: 12px; cursor: pointer;
+      transition: background .1s;
+    }
+    .more-drop button:hover { background: var(--s2); }
+    .more-drop .mi-del { color: var(--red); }
+    .more-drop .mi-del:hover { background: rgba(255,59,48,.07); color: var(--red); }
+    .more-sep { height: 1px; background: var(--b); margin: 3px 0; }
+
+    /* custom confirm dialog */
+    @keyframes fadeIn {
+      from { opacity: 0; } to { opacity: 1; }
+    }
+    .confirm-overlay {
+      position: fixed; inset: 0; z-index: 20000;
+      background: rgba(0,0,0,.3);
+      display: flex; align-items: center; justify-content: center;
+      animation: fadeIn .12s ease;
+    }
+    .confirm-card {
+      background: var(--s1); border-radius: var(--r);
+      box-shadow: 0 20px 60px rgba(0,0,0,.2), 0 2px 8px rgba(0,0,0,.1);
+      width: 300px; max-width: 90vw;
+      padding: 24px 20px 18px;
+      animation: fadeUp .16s cubic-bezier(.16,1,.3,1);
+    }
+    .confirm-msg {
+      font-size: 13px; color: var(--t1); text-align: center;
+      margin-bottom: 20px; line-height: 1.6;
+    }
+    .confirm-actions { display: flex; gap: 8px; }
+    .confirm-cancel {
+      flex: 1; background: var(--s2); color: var(--t1);
+      border: 1px solid var(--bm); border-radius: var(--rsm);
+      padding: 9px; font-size: 13px; cursor: pointer;
+      transition: background .12s;
+    }
+    .confirm-cancel:hover { background: var(--s3); }
+    .confirm-ok {
+      flex: 1; background: var(--red); color: #fff;
+      border: none; border-radius: var(--rsm);
+      padding: 9px; font-size: 13px; font-weight: 500; cursor: pointer;
+      transition: filter .15s;
+    }
+    .confirm-ok:hover { filter: brightness(1.1); }
+
+    .empty { color: var(--t3); font-size: 12px; padding: 14px 12px; }
+
+    /* ── Terminal View ───────────────────────────────────────── */
+    #termview { position: fixed; inset: 0; background: #0d0d0f; }
+    #bar {
+      display: flex; gap: 8px; align-items: center;
+      height: 44px; padding: 0 14px;
+      background: rgba(245,245,247,.9);
+      border-bottom: 1px solid var(--b);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+    #back {
+      background: var(--s2); color: var(--t2);
+      border: 1px solid var(--bm); border-radius: var(--rxs);
+      padding: 5px 12px; font-size: 12px; cursor: pointer;
+      transition: background .12s, color .12s;
+    }
+    #back:hover { background: var(--s3); color: var(--t1); }
+    #status { margin-left: auto; font-size: 11px; color: var(--t2); }
+    #term { position: absolute; top: 44px; left: 0; right: 0; bottom: 0; padding: 6px; }
+
+    /* ── Config View ─────────────────────────────────────────── */
+    #configview { position: fixed; inset: 0; z-index: 6; overflow: auto; background: var(--bg); }
+    #cfgbar {
+      display: flex; gap: 8px; align-items: center;
+      height: 44px; padding: 0 16px;
+      background: rgba(245,245,247,.9);
+      border-bottom: 1px solid var(--b);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      position: sticky; top: 0; z-index: 1;
+    }
+    #cfg-back {
+      background: var(--s2); color: var(--t2);
+      border: 1px solid var(--bm); border-radius: var(--rxs);
+      padding: 5px 12px; font-size: 12px; cursor: pointer;
+      transition: background .12s, color .12s;
+    }
+    #cfg-back:hover { background: var(--s3); color: var(--t1); }
+    .cfg-title { font-size: 13px; font-weight: 600; color: var(--t1); letter-spacing: -.01em; }
+    #cfg-status { margin-left: auto; font-size: 11px; color: var(--t2); }
+
+    #cfg-body { max-width: 720px; margin: 0 auto; padding: 20px 16px 48px; }
+
+    .cfg-card {
+      background: var(--s1); border-radius: var(--r);
+      box-shadow: var(--card-shadow); padding: 16px 18px; margin-bottom: 12px;
+    }
+    .cfg-h {
+      font-size: 10.5px; font-weight: 600; letter-spacing: .07em;
+      text-transform: uppercase; color: var(--t3); margin-bottom: 12px;
+    }
+    .cfg-field { display: block; font-size: 12px; color: var(--t2); margin-bottom: 14px; }
+    .cfg-field:last-child { margin-bottom: 0; }
+    .cfg-field input,
+    .cfg-field textarea {
+      display: block; width: 100%; margin-top: 5px;
+      background: var(--s2); color: var(--t1);
+      border: 1px solid var(--bm); border-radius: var(--rsm);
+      padding: 8px 10px; font-size: 12px; outline: none;
+      font-family: "SF Mono", "Menlo", "Consolas", monospace;
+      transition: border-color .15s, box-shadow .15s; resize: vertical;
+    }
+    .cfg-field input:focus,
+    .cfg-field textarea:focus {
+      border-color: var(--blue); box-shadow: 0 0 0 3px rgba(0,113,227,.12);
+    }
+
+    /* Model table */
+    .cfg-model-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+    .cfg-model-table th {
+      font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+      color: var(--t3); padding: 5px 8px; text-align: left;
+      border-bottom: 1px solid var(--b); white-space: nowrap;
+    }
+    .cfg-model-table td { padding: 4px 4px; vertical-align: middle; }
+    .cfg-model-table input {
+      width: 100%; background: var(--s2); color: var(--t1);
+      border: 1px solid var(--b); border-radius: var(--rxs);
+      padding: 5px 8px; font-size: 11px; min-width: 60px; outline: none;
+      font-family: "SF Mono", "Menlo", "Consolas", monospace;
+      transition: border-color .15s;
+    }
+    .cfg-model-table input:focus { border-color: var(--blue); }
+    .cfg-model-table .m-del {
+      background: transparent; color: var(--red);
+      border: 1px solid rgba(255,59,48,.2); border-radius: var(--rxs);
+      cursor: pointer; font-size: 11px; padding: 4px 10px; white-space: nowrap;
+      transition: background .12s;
+    }
+    .cfg-model-table .m-del:hover { background: rgba(255,59,48,.07); }
+    .cfg-model-row.builtin td { opacity: .4; }
+    .cfg-model-row.builtin input { cursor: not-allowed; }
+    .cfg-builtin-tag {
+      font-size: 10px; color: var(--t3);
+      background: var(--s2); border: 1px solid var(--b);
+      border-radius: 20px; padding: 2px 9px; white-space: nowrap;
+    }
+    .cfg-add {
+      background: transparent; color: var(--blue);
+      border: 1px solid rgba(0,113,227,.3); border-radius: var(--rxs);
+      padding: 7px 14px; font-size: 12px; cursor: pointer; transition: background .12s;
+    }
+    .cfg-add:hover { background: rgba(0,113,227,.06); }
+
+    .cfg-actions { display: flex; gap: 8px; }
+    .cfg-actions button {
+      flex: 1; border-radius: var(--rsm); padding: 10px;
+      font-size: 13px; font-weight: 500; cursor: pointer;
+      border: none; transition: filter .15s;
+    }
+    #cfg-save {
+      background: var(--s2); color: var(--t1);
+      border: 1px solid var(--bm) !important;
+    }
+    #cfg-save:hover { background: var(--s3); }
+    #cfg-apply { background: var(--blue); color: #fff; }
+    #cfg-apply:hover { filter: brightness(1.1); }
+
+    /* ── Animations ──────────────────────────────────────────── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(5px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    #home:not(.hidden) .home-wrap,
+    #configview:not(.hidden) #cfg-body {
+      animation: fadeUp .2s cubic-bezier(.16,1,.3,1);
+    }
+
+    /* ── Language Switcher ──────────────────────────────── */
+    #lang-sw {
+      position: fixed; top: 10px; right: 14px; z-index: 99999;
+      display: flex; align-items: center; gap: 2px;
+      background: var(--s1); border: 1px solid var(--bm);
+      border-radius: 20px; padding: 3px 8px;
+      box-shadow: var(--card-shadow);
+    }
+    .lb {
+      background: none; border: none; cursor: pointer;
+      font-size: 11px; color: var(--t3); padding: 1px 4px;
+      border-radius: 3px; transition: color .12s;
+    }
+    .lb.active { color: var(--t1); font-weight: 600; }
+    .lb-sep { font-size: 11px; color: var(--t3); }
+  </style>
+</head>
+<body>
+
+  <!-- Token Gate -->
+  <div id="gate">
+    <div class="gate-box">
+      <div class="gate-title">agent_win_serve</div>
+      <div class="gate-sub" data-i18n="gate_sub">Enter server access token</div>
+      <input id="token-input" type="password"
+             placeholder="Access token" data-i18n-ph="gate_placeholder" autocomplete="off" />
+      <label class="gate-remember">
+        <input type="checkbox" id="remember-token" />
+        <span data-i18n="gate_remember">Remember token</span>
+      </label>
+      <button id="enter" data-i18n="gate_enter">Enter</button>
+      <div id="gate-err"></div>
+    </div>
+  </div>
+
+  <!-- Home -->
+  <div id="home" class="hidden">
+    <div class="home-wrap">
+      <div class="sec-label" data-i18n="sec_new_session">New Session</div>
+      <div class="home-card">
+        <div class="new-row">
+          <select id="model"></select>
+          <select id="cwd"></select>
+          <button id="start" data-i18n="btn_start">Start</button>
+          <button id="config" data-i18n="btn_config">Config</button>
+        </div>
+      </div>
+      <div class="sec-label" data-i18n="sec_history">History</div>
+      <div id="history"></div>
+    </div>
+  </div>
+
+  <!-- Terminal View -->
+  <div id="termview" class="hidden">
+    <div id="bar">
+      <button id="back" data-i18n="btn_back">← Back</button>
+      <span id="status"></span>
+    </div>
+    <div id="term"></div>
+  </div>
+
+  <!-- Config View -->
+  <div id="configview" class="hidden">
+    <div id="cfgbar">
+      <button id="cfg-back" data-i18n="btn_cfg_back">← Back</button>
+      <span class="cfg-title" data-i18n="cfg_title">Config</span>
+      <span id="cfg-status"></span>
+    </div>
+    <div id="cfg-body">
+      <div class="cfg-card">
+        <label class="cfg-field">claude_bin
+          <input id="cfg-claude-bin" type="text" />
+        </label>
+        <label class="cfg-field">access_token
+          <input id="cfg-token" type="text" />
+        </label>
+        <label class="cfg-field">
+          <span data-i18n="cfg_dirs_label">project_dirs (one per line)</span>
+          <textarea id="cfg-dirs" rows="4"></textarea>
+        </label>
+      </div>
+      <div class="cfg-card">
+        <div class="cfg-h" data-i18n="cfg_models_label">Models</div>
+        <div id="cfg-models"></div>
+        <button id="cfg-add-model" class="cfg-add" data-i18n="cfg_add_model">+ Add model</button>
+      </div>
+      <div class="cfg-actions">
+        <button id="cfg-save" data-i18n="cfg_save">Save</button>
+        <button id="cfg-apply" data-i18n="cfg_apply">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Language switcher -->
+  <div id="lang-sw">
+    <button class="lb active" data-lang="en">EN</button>
+    <span class="lb-sep">|</span>
+    <button class="lb" data-lang="zh">中</button>
+  </div>
+
+  <script src="/static/vendor/xterm.js"></script>
+  <script src="/static/vendor/addon-fit.js"></script>
+  <script src="/static/terminal.js"></script>
+</body>
+</html>
