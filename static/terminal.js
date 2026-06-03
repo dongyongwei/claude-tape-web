@@ -658,5 +658,10 @@ function closeAllMenus() {
 }
 document.addEventListener("click", closeAllMenus);
 
+// ---------- Language switcher ----------
+document.querySelectorAll(".lb[data-lang]").forEach((btn) => {
+  btn.addEventListener("click", () => setLang(btn.dataset.lang));
+});
+
 // Apply initial language on page load.
 setLang(_lang);
