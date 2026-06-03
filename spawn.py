@@ -32,7 +32,7 @@ def build_spawn(data: dict, argv_map: dict[str, list[str]], claude_bin: str, sid
     """Convert a browser spawn message into PTY start parameters.
 
     Returns (argv, env, cols, rows, cwd).
-    If data.model_id matches a model entry, its env vars are injected.
+    If data["model_id"] matches a model entry, its env vars are injected.
     """
     command_id = data.get("command_id", "ccp")
     cols = int(data.get("cols", 120))

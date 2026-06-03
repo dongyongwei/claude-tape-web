@@ -93,7 +93,7 @@ def create_app(cfg: ServeConfig | None = None, store: SessionStore | None = None
 
     @app.get("/api/config", dependencies=[Depends(require_token)])
     def api_get_config():
-        # returns the full config (including secrets, plaintext); only for the config page which is already token-protected.
+        # Returns the full config including secrets (plaintext). Accessible only from the token-protected config page.
         # no file = defaults, so the config page works for first-time setup.
         return runtime.cfg.to_dict()
 
