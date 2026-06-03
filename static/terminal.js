@@ -174,20 +174,20 @@ function tokenQs() {
 }
 
 // ---------- 令牌门 → 落地页 ----------
-async function fetchOptions(t) {
-  const r = await fetch(`/api/project-dirs?token=${encodeURIComponent(t)}`);
+async function fetchOptions(tok) {
+  const r = await fetch(`/api/project-dirs?token=${encodeURIComponent(tok)}`);
   if (r.status === 401) throw new Error("令牌错误，请重试");
   if (!r.ok) throw new Error("加载失败");
   const dirs = await r.json();
-  const models = await fetch(`/api/models?token=${encodeURIComponent(t)}`).then((r) => r.json());
+  const models = await fetch(`/api/models?token=${encodeURIComponent(tok)}`).then((r) => r.json());
   return { dirs, models };
 }
 
 function populate({ dirs, models }) {
-  _models = [{ id: "", name: "官方 Claude（本机登录）" }, ...(models || [])];
+  _extraModels = models || [];
   const modelSel = $("model");
   modelSel.style.display = "";
-  modelSel.innerHTML = _models.map((m) => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join("");
+  modelSel.innerHTML = _allModels().map((m) => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join("");
   // 不设"默认目录"选项，直接以第一个目录为默认
   $("cwd").innerHTML = dirs.map((d) => `<option value="${d}">${d}</option>`).join("");
 }
@@ -305,7 +305,7 @@ async function renderHistory() {
     const rows = g.sessions.map((s) => {
       const tag = s.tag || "";
       const modelId = s.model_id || "";
-      const modelOpts = _models.map((m) =>
+      const modelOpts = _allModels().map((m) =>
         `<option value="${esc(m.id)}"${m.id === modelId ? " selected" : ""}>${esc(m.name)}</option>`
       ).join("");
       return `<div class="sess">
