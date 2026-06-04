@@ -19,6 +19,9 @@ const TRANSLATIONS = {
     cfg_dirs_label:   "project_dirs (one per line)",
     cfg_models_label: "Models",
     cfg_add_model:    "+ Add model",
+    cfg_import_model: "↑ Import",
+    cfg_export_model: "↓ Export",
+    cfg_import_err:   "Import failed",
     cfg_save:         "Save",
     cfg_apply:        "Apply",
     cfg_loading:      "Loading…",
@@ -35,6 +38,7 @@ const TRANSLATIONS = {
     sess_placeholder: "Unnamed",
     sess_activate:    "Activate",
     sess_more:        "More ▾",
+    sess_close:       "Close",
     sess_save:        "Save",
     sess_cancel:      "Cancel",
     sess_delete:      "Delete",
@@ -48,6 +52,7 @@ const TRANSLATIONS = {
     session_ended:    "Session ended",
     token_invalid:    "Invalid token",
     disconnected:     "Disconnected",
+    reconnecting:     "Reconnecting…",
     spawn_error:      "Spawn error",
     update_failed:    "Update failed",
     confirm_delete:   "Delete this session?",
@@ -56,6 +61,14 @@ const TRANSLATIONS = {
     default_model:    "Claude (local login)",
     builtin_tag:      "Built-in",
     model_del:        "Delete",
+    ntm_title:        "New Session",
+    ntm_model:        "Model",
+    ntm_project:      "Project",
+    ntm_cancel:       "Cancel",
+    ntm_start:        "Start",
+    htm_title:        "Resume Session",
+    htm_empty:        "No history",
+    htm_open:         "Open",
   },
   zh: {
     gate_sub:         "请输入服务端访问令牌",
@@ -75,6 +88,9 @@ const TRANSLATIONS = {
     cfg_dirs_label:   "project_dirs（一行一个）",
     cfg_models_label: "模型列表",
     cfg_add_model:    "+ 添加模型",
+    cfg_import_model: "↑ 导入",
+    cfg_export_model: "↓ 导出",
+    cfg_import_err:   "导入失败",
     cfg_save:         "保存",
     cfg_apply:        "应用生效",
     cfg_loading:      "加载中…",
@@ -91,6 +107,7 @@ const TRANSLATIONS = {
     sess_placeholder: "未命名",
     sess_activate:    "激活",
     sess_more:        "更多 ▾",
+    sess_close:       "断开",
     sess_save:        "保存",
     sess_cancel:      "取消",
     sess_delete:      "删除",
@@ -104,6 +121,7 @@ const TRANSLATIONS = {
     session_ended:    "会话已结束",
     token_invalid:    "令牌无效",
     disconnected:     "已断开",
+    reconnecting:     "重连中…",
     spawn_error:      "启动失败",
     update_failed:    "更新失败",
     confirm_delete:   "确定要删除此会话吗？",
@@ -112,6 +130,14 @@ const TRANSLATIONS = {
     default_model:    "官方 Claude（本机登录）",
     builtin_tag:      "内置",
     model_del:        "删除",
+    ntm_title:        "新建会话",
+    ntm_model:        "模型",
+    ntm_project:      "项目目录",
+    ntm_cancel:       "取消",
+    ntm_start:        "开始",
+    htm_title:        "恢复历史会话",
+    htm_empty:        "暂无历史",
+    htm_open:         "打开",
   },
 };
 
@@ -124,19 +150,18 @@ function t(key) {
 function setLang(lang) {
   _lang = lang;
   localStorage.setItem("agent_lang", lang);
-  // update all static data-i18n elements
   document.querySelectorAll("[data-i18n]").forEach((el) => {
     el.textContent = t(el.dataset.i18n);
   });
-  // update placeholder attributes
   document.querySelectorAll("[data-i18n-ph]").forEach((el) => {
     el.placeholder = t(el.dataset.i18nPh);
   });
-  // update switcher button active state
+  document.querySelectorAll("[data-i18n-title]").forEach((el) => {
+    el.title = t(el.dataset.i18nTitle);
+  });
   document.querySelectorAll(".lb[data-lang]").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.lang === _lang);
   });
-  // re-render dynamic content in visible views
   if (!$("home").classList.contains("hidden")) {
     if (_lastOpts) populate(_lastOpts);
     renderHistory();
@@ -144,36 +169,38 @@ function setLang(lang) {
   if (!$("configview").classList.contains("hidden")) {
     renderModels(_lastCfgModels);
   }
-  // re-apply status if termview is visible
   if (!$("termview").classList.contains("hidden")) {
-    $("status").textContent = t(_statusState.key);
+    const activeTab = getActiveTab();
+    if (activeTab) {
+      $("status").textContent = t(activeTab.statusKey);
+    }
   }
 }
 
 let token = new URLSearchParams(location.search).get("token") || "";
-
-const term = new Terminal({
-  fontSize: 14,
-  fontFamily: "Consolas, 'Courier New', monospace",
-  cursorBlink: true,
-  theme: { background: "#1e1e1e" },
-});
-const fit = new FitAddon.FitAddon();
-term.loadAddon(fit);
-term.open($("term"));
-
-let ws = null;
 let _lastOpts = null;
 let _lastCfgModels = [];
-let _statusState = { key: "not_connected", color: "" };
 let _extraModels = [];
+
+// ---------- Multi-tab state ----------
+let _tabs = [];
+let _activeTabId = null;
+let _tabCounter = 0;
+
+const _MAX_RECONNECT = 8;
+const _HEARTBEAT_MS = 30_000;
+
 function _allModels() { return [{ id: "", name: t("default_model") }, ..._extraModels]; }
+
+function getActiveTab() {
+  return _tabs.find((tab) => tab.id === _activeTabId) || null;
+}
 
 function tokenQs() {
   return token ? `?token=${encodeURIComponent(token)}` : "";
 }
 
-// ---------- 令牌门 → 落地页 ----------
+// ---------- Token Gate → Home ----------
 async function fetchOptions(tok) {
   const r = await fetch(`/api/project-dirs?token=${encodeURIComponent(tok)}`);
   if (r.status === 401) throw new Error(t("gate_err_invalid"));
@@ -189,13 +216,12 @@ function populate({ dirs, models }) {
   const modelSel = $("model");
   modelSel.style.display = "";
   modelSel.innerHTML = _allModels().map((m) => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join("");
-  // 不设"默认目录"选项，直接以第一个目录为默认
   $("cwd").innerHTML = dirs.map((d) => `<option value="${d}">${d}</option>`).join("");
 }
 
-async function enter(t) {
-  const opts = await fetchOptions(t);
-  token = t;
+async function enter(tok) {
+  const opts = await fetchOptions(tok);
+  token = tok;
   populate(opts);
   $("gate").classList.add("hidden");
   showHome();
@@ -203,9 +229,9 @@ async function enter(t) {
 
 $("enter").onclick = () => {
   $("gate-err").textContent = "";
-  const t = $("token-input").value.trim();
-  enter(t).then(() => {
-    if ($("remember-token").checked) localStorage.setItem("agent_token", t);
+  const tok = $("token-input").value.trim();
+  enter(tok).then(() => {
+    if ($("remember-token").checked) localStorage.setItem("agent_token", tok);
     else localStorage.removeItem("agent_token");
   }).catch((e) => {
     $("gate-err").textContent = e.message;
@@ -228,7 +254,7 @@ $("token-input").addEventListener("keydown", (e) => {
   }
 }
 
-// ---------- 工具函数 ----------
+// ---------- Utilities ----------
 function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"]/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -243,7 +269,7 @@ async function patchSession(sid, body) {
   if (!r.ok) throw new Error(t("update_failed"));
 }
 
-// ---------- 自定义确认对话框 ----------
+// ---------- Confirm Dialog ----------
 function showConfirm(msg) {
   return new Promise((resolve) => {
     const overlay = document.createElement("div");
@@ -268,7 +294,7 @@ function showConfirm(msg) {
   });
 }
 
-// ---------- 落地页：历史记录 ----------
+// ---------- Home: History ----------
 function fmtWhen(iso) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -323,10 +349,11 @@ async function renderHistory() {
         </div>
         <span class="spacer"></span>
         <button class="act" data-act="${esc(s.sid)}" data-cwd="${esc(s.cwd)}"
-          data-cmd="${esc(s.command_id)}" data-model="${esc(s.model_id || "")}">${t("sess_activate")}</button>
+          data-model="${esc(s.model_id || "")}">${t("sess_activate")}</button>
         <div class="more-wrap">
           <button class="more-btn">${t("sess_more")}</button>
           <div class="more-drop hidden">
+            ${s.status === "active" ? `<button class="mi-close" data-sid="${esc(s.sid)}">${t("sess_close")}</button><div class="more-sep"></div>` : ""}
             <button class="mi-del" data-sid="${esc(s.sid)}">${t("sess_delete")}</button>
           </div>
         </div>
@@ -363,12 +390,10 @@ async function renderHistory() {
     b.onclick = () => connect({
       resume: b.dataset.act,
       cwd: b.dataset.cwd || undefined,
-      command_id: b.dataset.cmd || undefined,
       model_id: b.dataset.model || undefined,
     });
   });
 
-  // 更多下拉菜单
   box.querySelectorAll(".more-btn").forEach((btn) => {
     btn.onclick = (e) => {
       e.stopPropagation();
@@ -379,7 +404,6 @@ async function renderHistory() {
     };
   });
 
-  // 行内模型下拉：change 即提交
   box.querySelectorAll(".m-select").forEach((sel) => {
     sel.dataset.prevIndex = String(sel.selectedIndex);
     sel.addEventListener("change", async () => {
@@ -397,13 +421,11 @@ async function renderHistory() {
     });
   });
 
-  // 行内标题编辑：点击出现保存/取消，Enter 换行，Escape 取消，blur 自动还原
   box.querySelectorAll(".tag-input").forEach((inp) => {
-    const btns = inp.nextElementSibling; // .tag-btns
+    const btns = inp.nextElementSibling;
     const ok = btns.querySelector(".pk-ok");
     const cancelBtn = btns.querySelector(".pk-cancel");
 
-    // 自动扩高
     const autoGrow = () => {
       inp.style.height = "auto";
       inp.style.height = inp.scrollHeight + "px";
@@ -411,7 +433,6 @@ async function renderHistory() {
     inp.addEventListener("input", autoGrow);
     autoGrow();
 
-    // 阻止按钮 mousedown 触发 textarea blur
     ok.addEventListener("mousedown", (e) => e.preventDefault());
     cancelBtn.addEventListener("mousedown", (e) => e.preventDefault());
 
@@ -439,7 +460,6 @@ async function renderHistory() {
     cancelBtn.onclick = cancel;
 
     inp.addEventListener("focus", () => btns.classList.add("visible"));
-    // blur 统一还原（save 已更新 dataset.orig，还原后显示正确值）
     inp.addEventListener("blur", () => {
       inp.value = inp.dataset.orig;
       autoGrow();
@@ -450,7 +470,6 @@ async function renderHistory() {
     });
   });
 
-  // 删除（自定义确认对话框）
   box.querySelectorAll(".mi-del").forEach((item) => {
     item.onclick = async () => {
       closeAllMenus();
@@ -460,18 +479,366 @@ async function renderHistory() {
       renderHistory();
     };
   });
+
+  box.querySelectorAll(".mi-close").forEach((item) => {
+    item.onclick = async () => {
+      closeAllMenus();
+      const sid = item.dataset.sid;
+      const tab = _tabs.find((tb) => tb.sid === sid);
+      if (tab) {
+        tab.intentionalClose = true;
+        clearTimeout(tab.reconnectTimer);
+        clearInterval(tab.heartbeat);
+        if (tab.ws) { try { tab.ws.close(); } catch (_) {} }
+      }
+      await fetch(`/api/sessions/${encodeURIComponent(sid)}/close${tokenQs()}`, { method: "POST" }).catch(() => {});
+      renderHistory();
+    };
+  });
 }
+
+// ---------- Tab Management ----------
+function createTabSession() {
+  const id = ++_tabCounter;
+  const panel = document.createElement("div");
+  panel.className = "term-panel hidden";
+  panel.dataset.tabId = String(id);
+  $("term-container").appendChild(panel);
+
+  const terminal = new Terminal({
+    fontSize: 14,
+    fontFamily: "Consolas, 'Courier New', monospace",
+    cursorBlink: true,
+    theme: { background: "#1e1e1e" },
+  });
+  const fitAddon = new FitAddon.FitAddon();
+  terminal.loadAddon(fitAddon);
+  terminal.open(panel);
+
+  const tab = {
+    id,
+    label: `Session ${id}`,
+    panel,
+    terminal,
+    fitAddon,
+    ws: null,
+    sid: null,
+    connectOpts: null,
+    intentionalClose: false,
+    reconnectTimer: null,
+    reconnectCount: 0,
+    statusKey: "not_connected",
+    statusColor: "",
+    heartbeat: null,
+  };
+
+  terminal.onData((d) => {
+    if (tab.ws && tab.ws.readyState === WebSocket.OPEN) {
+      tab.ws.send(JSON.stringify({ type: "input", data: d }));
+    }
+  });
+
+  _tabs.push(tab);
+  return tab;
+}
+
+function setTabStatus(tab, key, color) {
+  tab.statusKey = key;
+  tab.statusColor = color || "";
+  if (tab.id === _activeTabId) {
+    $("status").textContent = t(key);
+    $("status").style.color = tab.statusColor;
+  }
+}
+
+function activateTab(id) {
+  const prev = getActiveTab();
+  if (prev && prev.id !== id) {
+    prev.panel.classList.add("hidden");
+  }
+  _activeTabId = id;
+  const tab = getActiveTab();
+  if (tab) {
+    tab.panel.classList.remove("hidden");
+    tab.fitAddon.fit();
+    $("status").textContent = t(tab.statusKey);
+    $("status").style.color = tab.statusColor;
+  }
+  renderTabStrip();
+}
+
+function closeTab(id) {
+  const idx = _tabs.findIndex((tab) => tab.id === id);
+  if (idx === -1) return;
+  const tab = _tabs[idx];
+
+  tab.intentionalClose = true;
+  clearTimeout(tab.reconnectTimer);
+  clearInterval(tab.heartbeat);
+  if (tab.ws) { try { tab.ws.close(); } catch (e) {} }
+  tab.terminal.dispose();
+  tab.panel.remove();
+  _tabs.splice(idx, 1);
+
+  if (_tabs.length === 0) {
+    $("termview").classList.add("hidden");
+    showHome();
+    return;
+  }
+
+  if (_activeTabId === id) {
+    const newIdx = Math.min(idx, _tabs.length - 1);
+    activateTab(_tabs[newIdx].id);
+  } else {
+    renderTabStrip();
+  }
+}
+
+function renderTabStrip() {
+  const strip = $("tab-strip");
+  strip.innerHTML = _tabs.map((tab) => {
+    const active = tab.id === _activeTabId ? " active" : "";
+    return `<div class="tab-btn${active}" data-tab-id="${tab.id}">
+      <span class="tab-label">${esc(tab.label)}</span>
+      <button class="tab-close" data-close-tab="${tab.id}">×</button>
+    </div>`;
+  }).join("");
+
+  strip.querySelectorAll(".tab-btn").forEach((btn) => {
+    const tabId = parseInt(btn.dataset.tabId);
+    btn.addEventListener("click", (e) => {
+      if (e.target.classList.contains("tab-close")) return;
+      activateTab(tabId);
+    });
+    btn.querySelector(".tab-label").addEventListener("dblclick", (e) => {
+      e.stopPropagation();
+      startRenameTab(tabId, e.currentTarget);
+    });
+  });
+
+  strip.querySelectorAll(".tab-close").forEach((btn) => {
+    const tabId = parseInt(btn.dataset.closeTab);
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      closeTab(tabId);
+    });
+  });
+}
+
+function startRenameTab(id, labelEl) {
+  const tab = _tabs.find((tb) => tb.id === id);
+  if (!tab) return;
+  const origLabel = tab.label;
+  labelEl.contentEditable = "true";
+  labelEl.textContent = tab.label;
+  labelEl.focus();
+
+  const range = document.createRange();
+  range.selectNodeContents(labelEl);
+  window.getSelection().removeAllRanges();
+  window.getSelection().addRange(range);
+
+  let cancelled = false;
+  const onKey = (e) => {
+    if (e.key === "Enter") { e.preventDefault(); labelEl.blur(); }
+    if (e.key === "Escape") { cancelled = true; e.preventDefault(); labelEl.blur(); }
+  };
+  labelEl.addEventListener("keydown", onKey);
+  labelEl.addEventListener("blur", () => {
+    labelEl.removeEventListener("keydown", onKey);
+    labelEl.contentEditable = "false";
+    if (!cancelled) {
+      tab.label = labelEl.textContent.trim() || origLabel;
+    }
+    renderTabStrip();
+  }, { once: true });
+}
+
+function sendToTab(tab, obj) {
+  if (tab.ws && tab.ws.readyState === WebSocket.OPEN) {
+    tab.ws.send(JSON.stringify(obj));
+  }
+}
+
+function scheduleReconnect(tab) {
+  if (tab.reconnectCount >= _MAX_RECONNECT) {
+    setTabStatus(tab, "disconnected", "#e57373");
+    return;
+  }
+  tab.reconnectCount++;
+  const delay = Math.min(1000 * Math.pow(2, tab.reconnectCount - 1), 30_000);
+  setTabStatus(tab, "reconnecting", "#ff9800");
+  tab.reconnectTimer = setTimeout(() => {
+    if ($("termview").classList.contains("hidden")) {
+      tab.reconnectCount = 0;
+      return;
+    }
+    connectTab(tab, { ...tab.connectOpts, resume: tab.sid || tab.connectOpts?.resume });
+  }, delay);
+}
+
+function connectTab(tab, opts) {
+  clearTimeout(tab.reconnectTimer);
+  clearInterval(tab.heartbeat);
+  tab.intentionalClose = false;
+  tab.connectOpts = opts;
+  tab.terminal.clear();
+
+  if (!tab.panel.classList.contains("hidden")) {
+    tab.fitAddon.fit();
+  }
+
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  tab.ws = new WebSocket(`${proto}://${location.host}/ws/term${tokenQs()}`);
+  tab.ws.binaryType = "arraybuffer";
+
+  tab.ws.onopen = () => {
+    tab.reconnectCount = 0;
+    setTabStatus(tab, opts.resume ? "connected_resume" : "connected", "#4caf50");
+    if (!tab.panel.classList.contains("hidden")) tab.fitAddon.fit();
+    sendToTab(tab, {
+      type: "spawn",
+      resume: opts.resume,
+      model_id: opts.model_id,
+      cwd: opts.cwd,
+      cols: tab.terminal.cols,
+      rows: tab.terminal.rows,
+    });
+    tab.heartbeat = setInterval(() => sendToTab(tab, { type: "ping" }), _HEARTBEAT_MS);
+  };
+
+  tab.ws.onmessage = (ev) => {
+    if (typeof ev.data === "string") {
+      const msg = JSON.parse(ev.data);
+      if (msg.type === "spawned") {
+        tab.sid = msg.sid;
+      } else if (msg.type === "spawn_error") {
+        tab.terminal.write(`\r\n[${t("spawn_error")}] ${msg.error}\r\n`);
+      } else if (msg.type === "closed") {
+        setTabStatus(tab, "session_ended", "#e57373");
+      }
+      return;
+    }
+    tab.terminal.write(new Uint8Array(ev.data));
+  };
+
+  tab.ws.onclose = (ev) => {
+    clearInterval(tab.heartbeat);
+    if (ev.code === 4003) {
+      setTabStatus(tab, "token_invalid", "#e57373");
+      return;
+    }
+    if (tab.intentionalClose) {
+      setTabStatus(tab, "disconnected", "#e57373");
+      return;
+    }
+    scheduleReconnect(tab);
+  };
+}
+
+function connect(opts) {
+  $("home").classList.add("hidden");
+  $("termview").classList.remove("hidden");
+  const tab = createTabSession();
+  activateTab(tab.id);
+  connectTab(tab, opts);
+}
+
+// ---------- Back Button ----------
+$("back").onclick = () => {
+  [..._tabs].forEach((tab) => {
+    tab.intentionalClose = true;
+    clearTimeout(tab.reconnectTimer);
+    clearInterval(tab.heartbeat);
+    if (tab.ws) { try { tab.ws.close(); } catch (e) {} }
+    tab.terminal.dispose();
+    tab.panel.remove();
+  });
+  _tabs = [];
+  _activeTabId = null;
+  $("tab-strip").innerHTML = "";
+  $("termview").classList.add("hidden");
+  showHome();
+};
 
 $("start").onclick = () => connect({
   model_id: $("model").value || undefined,
   cwd: $("cwd").value || undefined,
 });
-$("back").onclick = () => {
-  if (ws) { try { ws.close(); } catch (e) {} ws = null; }
-  showHome();
+
+// ---------- New Tab Modal ----------
+$("tab-add").onclick = () => {
+  if (_lastOpts) {
+    $("ntm-model").innerHTML = _allModels().map((m) =>
+      `<option value="${esc(m.id)}">${esc(m.name)}</option>`
+    ).join("");
+    $("ntm-cwd").innerHTML = (_lastOpts.dirs || []).map((d) =>
+      `<option value="${d}">${d}</option>`
+    ).join("");
+  }
+  $("ntm").classList.remove("hidden");
 };
 
-// ---------- 配置视图 ----------
+$("ntm-cancel").onclick = () => $("ntm").classList.add("hidden");
+$("ntm").addEventListener("click", (e) => {
+  if (e.target === $("ntm")) $("ntm").classList.add("hidden");
+});
+
+// ---------- History Tab Modal ----------
+$("tab-resume").onclick = async () => {
+  let groups = [];
+  try {
+    groups = await fetch(`/api/sessions${tokenQs()}`).then((r) => r.json());
+  } catch (_) {}
+
+  const list = $("htm-list");
+  const sessions = groups.flatMap((g) => g.sessions);
+
+  if (!sessions.length) {
+    list.innerHTML = `<div class="empty">${t("htm_empty")}</div>`;
+  } else {
+    list.innerHTML = sessions.map((s) => `
+      <div class="htm-row">
+        <span class="dot ${s.status === "active" ? "active" : "closed"}"></span>
+        <span class="when">${esc(fmtWhen(s.last_active_at))}</span>
+        <span class="htm-tag">${esc(s.tag || s.cwd || s.sid.slice(0, 8))}</span>
+        <button class="htm-open" data-sid="${esc(s.sid)}"
+          data-cwd="${esc(s.cwd || "")}"
+          data-model="${esc(s.model_id || "")}">${t("htm_open")}</button>
+      </div>`).join("");
+
+    list.querySelectorAll(".htm-open").forEach((btn) => {
+      btn.onclick = () => {
+        $("htm").classList.add("hidden");
+        const tab = createTabSession();
+        activateTab(tab.id);
+        connectTab(tab, {
+          resume: btn.dataset.sid,
+          cwd: btn.dataset.cwd || undefined,
+          model_id: btn.dataset.model || undefined,
+        });
+      };
+    });
+  }
+
+  $("htm").classList.remove("hidden");
+};
+
+$("htm-cancel").onclick = () => $("htm").classList.add("hidden");
+$("htm").addEventListener("click", (e) => {
+  if (e.target === $("htm")) $("htm").classList.add("hidden");
+});
+$("ntm-start").onclick = () => {
+  $("ntm").classList.add("hidden");
+  const tab = createTabSession();
+  activateTab(tab.id);
+  connectTab(tab, {
+    model_id: $("ntm-model").value || undefined,
+    cwd: $("ntm-cwd").value || undefined,
+  });
+};
+
+// ---------- Config View ----------
 function cfgStatus(text, color) {
   $("cfg-status").textContent = text || "";
   $("cfg-status").style.color = color || "#888";
@@ -566,6 +933,39 @@ $("cfg-add-model").onclick = () => {
   if (tbody) { tbody.insertAdjacentHTML("beforeend", modelRowHtml({ id: nextModelId() })); bindModelDel(); }
 };
 
+$("cfg-export-model").onclick = () => {
+  const models = collectConfig().models;
+  const blob = new Blob([JSON.stringify(models, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "models.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+
+$("cfg-import-model").onclick = () => $("cfg-import-file").click();
+
+$("cfg-import-file").onchange = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      let data = JSON.parse(ev.target.result);
+      if (!Array.isArray(data)) data = data.models || [];
+      const tbody = $("cfg-models").querySelector("tbody");
+      if (tbody) {
+        data.forEach((m) => tbody.insertAdjacentHTML("beforeend", modelRowHtml({ ...m, id: nextModelId() })));
+        bindModelDel();
+      }
+    } catch (err) {
+      cfgStatus(t("cfg_import_err") + ": " + err.message, "#e57373");
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = "";
+};
+
 $("cfg-save").onclick = async () => {
   cfgStatus(t("cfg_saving"));
   try {
@@ -599,69 +999,23 @@ $("cfg-apply").onclick = async () => {
   }
 };
 
-// ---------- 终端连接 ----------
-function setStatus(key, color) {
-  _statusState = { key, color: color || "" };
-  $("status").textContent = t(key);
-  $("status").style.color = _statusState.color;
-}
-
-function send(obj) {
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
-}
-
-function connect(opts) {
-  $("home").classList.add("hidden");
-  $("termview").classList.remove("hidden");
-  term.clear();
-  fit.fit();
-
-  const proto = location.protocol === "https:" ? "wss" : "ws";
-  ws = new WebSocket(`${proto}://${location.host}/ws/term${tokenQs()}`);
-  ws.binaryType = "arraybuffer";
-
-  ws.onopen = () => {
-    setStatus(opts.resume ? "connected_resume" : "connected", "#4caf50");
-    fit.fit();
-    send({
-      type: "spawn",
-      resume: opts.resume,
-      command_id: opts.command_id,
-      model_id: opts.model_id,
-      cwd: opts.cwd,
-      cols: term.cols,
-      rows: term.rows,
-    });
-  };
-  ws.onmessage = (ev) => {
-    if (typeof ev.data === "string") {
-      const msg = JSON.parse(ev.data);
-      if (msg.type === "spawn_error") term.write(`\r\n[${t("spawn_error")}] ${msg.error}\r\n`);
-      if (msg.type === "closed") setStatus("session_ended", "#e57373");
-      return;
-    }
-    term.write(new Uint8Array(ev.data));
-  };
-  ws.onclose = (ev) => {
-    setStatus(ev.code === 4003 ? "token_invalid" : "disconnected", "#e57373");
-  };
-}
-
-term.onData((d) => send({ type: "input", data: d }));
+// ---------- Resize ----------
 window.addEventListener("resize", () => {
-  fit.fit();
-  send({ type: "resize", cols: term.cols, rows: term.rows });
+  const tab = getActiveTab();
+  if (!tab) return;
+  tab.fitAddon.fit();
+  sendToTab(tab, { type: "resize", cols: tab.terminal.cols, rows: tab.terminal.rows });
 });
 
+// ---------- Menus ----------
 function closeAllMenus() {
   document.querySelectorAll(".more-drop").forEach((d) => d.classList.add("hidden"));
 }
 document.addEventListener("click", closeAllMenus);
 
-// ---------- Language switcher ----------
+// ---------- Language Switcher ----------
 document.querySelectorAll(".lb[data-lang]").forEach((btn) => {
   btn.addEventListener("click", () => setLang(btn.dataset.lang));
 });
 
-// Apply initial language on page load.
 setLang(_lang);

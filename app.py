@@ -5,8 +5,8 @@ from fastapi import Body, Depends, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from commands import load_commands
 from config import ServeConfig, resolve_write_path, save_config
+from pty_manager import PtyManager
 from session_store import SessionStore
 from term_ws import make_router
 from token_store import clear_saved_token, save_token
@@ -27,14 +27,13 @@ def _sync_token_store(token: str) -> None:
 
 
 class Runtime:
-    """Mutable runtime state holder: centralises cfg and argv_map for hot-reload support."""
+    """Mutable runtime state holder: centralises cfg for hot-reload support."""
 
-    def __init__(self, cfg: ServeConfig, argv_map: dict):
+    def __init__(self, cfg: ServeConfig):
         self.cfg = cfg
-        self.argv_map = argv_map
 
     def apply(self, new_cfg: ServeConfig) -> bool:
-        """Swap in new config. Recomputes argv_map if claude_bin changed.
+        """Swap in new config.
 
         host/port cannot be rebound at runtime: sets restart_required on change,
         then swaps in a copy that preserves the current bound host/port (does not mutate new_cfg).
@@ -43,8 +42,6 @@ class Runtime:
         restart_required = (
             new_cfg.host != self.cfg.host or new_cfg.port != self.cfg.port
         )
-        if new_cfg.claude_bin != self.cfg.claude_bin:
-            self.argv_map, _ = load_commands(new_cfg.claude_bin)
         # swap in a copy to preserve the running host/port binding without mutating the caller's new_cfg
         self.cfg = replace(new_cfg, host=self.cfg.host, port=self.cfg.port)
         return restart_required
@@ -53,8 +50,8 @@ class Runtime:
 def create_app(cfg: ServeConfig | None = None, store: SessionStore | None = None) -> FastAPI:
     cfg = cfg or ServeConfig.from_env()
     store = store or SessionStore()
-    argv_map, ui_list = load_commands(cfg.claude_bin)
-    runtime = Runtime(cfg, argv_map)
+    pty_manager = PtyManager()
+    runtime = Runtime(cfg)
 
     app = FastAPI(title="agent_win_serve")
 
@@ -62,10 +59,6 @@ def create_app(cfg: ServeConfig | None = None, store: SessionStore | None = None
         # if access_token is set, ?token= must match; reads runtime to support hot-reload
         if runtime.cfg.access_token and token != runtime.cfg.access_token:
             raise HTTPException(status_code=401, detail="invalid token")
-
-    @app.get("/api/commands", dependencies=[Depends(require_token)])
-    def api_commands():
-        return ui_list
 
     @app.get("/api/project-dirs", dependencies=[Depends(require_token)])
     def api_project_dirs():
@@ -90,6 +83,12 @@ def create_app(cfg: ServeConfig | None = None, store: SessionStore | None = None
     @app.delete("/api/sessions/{sid}", dependencies=[Depends(require_token)])
     def api_delete_session(sid: str):
         return {"deleted": store.delete(sid)}
+
+    @app.post("/api/sessions/{sid}/close", dependencies=[Depends(require_token)])
+    def api_close_session(sid: str):
+        pty_manager.kill(sid)
+        store.mark_closed(sid)
+        return {"closed": True}
 
     @app.get("/api/config", dependencies=[Depends(require_token)])
     def api_get_config():
@@ -118,11 +117,15 @@ def create_app(cfg: ServeConfig | None = None, store: SessionStore | None = None
         restart = runtime.apply(normalized)
         return {"applied": True, "restart_required": restart}
 
-    app.include_router(make_router(lambda: (runtime.cfg, runtime.argv_map), store))
+    app.include_router(make_router(lambda: runtime.cfg, store, pty_manager))
 
     @app.get("/")
     def index():
         return FileResponse(_STATIC / "index.html")
+
+    @app.get("/m")
+    def mobile_index():
+        return FileResponse(_STATIC / "mobile.html")
 
     app.mount("/static", StaticFiles(directory=_STATIC), name="static")
     return app

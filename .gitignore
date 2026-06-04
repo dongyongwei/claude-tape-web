@@ -216,3 +216,17 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Claude Tape Web specific
+config.json
+.agent_win_serve/
+*.pyc
+
+
+
+.gitignore
+
+docs
+.superpowers
+CLAUDE.md
+.workbuddy

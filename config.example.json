@@ -1,0 +1,29 @@
+{
+  "claude_bin": "C:/Users/YourName/.local/bin/claude.exe",
+  "access_token": "replace-with-your-access-token",
+  "project_dirs": "D:/proj/a;D:/proj/b;D:/proj/c",
+  "models": [
+    {
+      "id": "1",
+      "name": "Official Claude (local login)",
+      "base_url": "",
+      "auth_token": "",
+      "model": ""
+    },
+    {
+      "id": "2",
+      "name": "Kimi K2",
+      "base_url": "https://api.moonshot.cn/anthropic",
+      "auth_token": "sk-your-key",
+      "model": "kimi-k2-0905-preview",
+      "small_fast_model": "kimi-k2-0905-preview"
+    },
+    {
+      "id": "3",
+      "name": "Zhipu GLM",
+      "base_url": "https://open.bigmodel.cn/api/anthropic",
+      "auth_token": "your-key",
+      "model": "glm-4.6"
+    }
+  ]
+}

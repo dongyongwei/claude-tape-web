@@ -63,16 +63,26 @@ def main() -> None:
     app = create_app(cfg)
     _cfg_path = resolve_config_path()
     cfg_hint = str(_cfg_path) if _cfg_path.exists() else f"{_cfg_path} (not created, using defaults)"
+    lan = _lan_ip()
     print("=" * 56)
     print("  agent_win_serve started")
     print(f"  Local    : http://127.0.0.1:{cfg.port}")
-    print(f"  LAN      : http://{_lan_ip()}:{cfg.port}")
+    print(f"  LAN      : http://{lan}:{cfg.port}")
+    if cfg.host == "0.0.0.0":
+        print(f"  External : http://0.0.0.0:{cfg.port}  (all interfaces)")
     print(f"  Token    : {cfg.access_token}")
     print("  (enter this token in the browser to access)")
     print(f"  Config   : {cfg_hint}")
     print(f"  Dirs     : {len(cfg.project_dirs)} | Models: {len(cfg.models)}")
     print("=" * 56)
-    uvicorn.run(app, host=cfg.host, port=cfg.port, log_level="info")
+    uvicorn.run(
+        app,
+        host=cfg.host,
+        port=cfg.port,
+        log_level="info",
+        ws_ping_interval=30,
+        ws_ping_timeout=10,
+    )
 
 
 if __name__ == "__main__":
