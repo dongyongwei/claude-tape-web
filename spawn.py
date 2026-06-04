@@ -1,5 +1,28 @@
 from env_builder import build as build_env
-from server_link import build_claude_command
+
+
+def build_claude_command(
+    base_cmd: list[str], sid: str, *, resume: str | None = None, cont: bool = False
+) -> list[str]:
+    """Decide the claude argv for a spawn.
+
+    - resume given (UUID reactivate): --resume <id> restores that exact conversation.
+    - cont (legacy reactivate): --continue, best-effort latest conversation.
+    - fresh spawn with a UUID sid: --session-id <sid> pins the new conversation
+      to this id, so a later reactivate can --resume it precisely.
+    - fresh spawn with a legacy (non-UUID) sid: no extra flag (unchanged behavior).
+    """
+    cmd = list(base_cmd)
+    if "--dangerously-skip-permissions" not in cmd:
+        cmd.append("--dangerously-skip-permissions")
+    if resume:
+        cmd += ["--resume", str(resume)]
+    elif cont:
+        if "--continue" not in cmd:
+            cmd.append("--continue")
+    elif "-" in sid:
+        cmd += ["--session-id", sid]
+    return cmd
 
 
 def apply_model_env(env: dict, models: list[dict] | None, model_id: str | None) -> None:
@@ -27,18 +50,17 @@ def apply_model_env(env: dict, models: list[dict] | None, model_id: str | None) 
             env[env_name] = val
 
 
-def build_spawn(data: dict, argv_map: dict[str, list[str]], claude_bin: str, sid: str,
+def build_spawn(data: dict, claude_bin: str, sid: str,
                 models: list[dict] | None = None):
     """Convert a browser spawn message into PTY start parameters.
 
     Returns (argv, env, cols, rows, cwd).
     If data["model_id"] matches a model entry, its env vars are injected.
     """
-    command_id = data.get("command_id", "ccp")
     cols = int(data.get("cols", 120))
     rows = int(data.get("rows", 30))
     cwd = data.get("cwd")
-    base = argv_map.get(command_id, [claude_bin])
+    base = [claude_bin]
     argv = build_claude_command(
         base, sid,
         resume=data.get("resume"),

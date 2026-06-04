@@ -40,7 +40,6 @@ class SessionStore:
         self,
         sid: str,
         cwd: str | None,
-        command_id: str,
         model_id: str | None = None,
         model_name: str | None = None,
         cols: int = 120,
@@ -58,7 +57,7 @@ class SessionStore:
             _dump(path, existing)
             return
         _dump(path, {
-            "sid": sid, "cwd": cwd or "", "command_id": command_id,
+            "sid": sid, "cwd": cwd or "",
             "model_id": model_id or "", "model_name": model_name or "",
             "tag": "",
             "cols": int(cols), "rows": int(rows),
