@@ -81,6 +81,11 @@ Enter the access token to use.
 **PC Web Interface**:
 ![PC Web Interface](doc_data/web-pc.png)
 
+**Multi-Tab Operation**:
+![Multi-Tab Operation](doc_data/web-pc-tab.png)
+
+Smooth multi-tab experience — no more being limited to a single session per page. Open multiple tabs to work on different tasks simultaneously.
+
 **Mobile Access**: Append `/m` to the URL (e.g., `http://127.0.0.1:8009/m`) to access the mobile-optimized interface.
 
 **H5 Mobile Interface**:
