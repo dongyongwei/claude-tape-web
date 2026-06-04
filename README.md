@@ -31,6 +31,7 @@
 - **Access Control**: Simple token-based authentication to prevent unauthorized access
 - **Session Persistence**: Local session index storage with history viewing
 - **Visual Configuration**: In-page configuration editing with hot-reload
+- **Mobile Friendly**: Dedicated mobile-optimized interface accessible via `/m` path
 
 ## Project Highlights
 
@@ -75,7 +76,17 @@ First startup will randomly generate an access token, please save it properly. A
 - **External Access**: http://0.0.0.0:8009 (all network interfaces)
 
 ### Access Page
-Enter the access token to use. For external access, refer to the ngrok configuration below.
+Enter the access token to use.
+
+**PC Web Interface**:
+![PC Web Interface](doc_data/web-pc.png)
+
+**Mobile Access**: Append `/m` to the URL (e.g., `http://127.0.0.1:8009/m`) to access the mobile-optimized interface.
+
+**H5 Mobile Interface**:
+![H5 Mobile Interface](doc_data/web-h5.png)
+
+For external access, refer to the ngrok configuration below.
 
 ## Configuration
 
