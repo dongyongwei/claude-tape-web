@@ -221,7 +221,10 @@ __marimo__/
 config.json
 .agent_win_serve/
 *.pyc
-
+dist-nuitka/
+__main__.build/
+__main__.dist/
+__main__.onefile-build/
 
 
 .gitignore
@@ -230,3 +233,4 @@ docs
 .superpowers
 CLAUDE.md
 .workbuddy
+.gitignore

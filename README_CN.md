@@ -93,6 +93,18 @@ python __main__.py
 
 如需外网访问，参考下方 ngrok 配置。
 
+## 打包为独立可执行文件
+
+使用 Nuitka 打包为单文件 exe：
+
+```powershell
+.\.venv\Scripts\python.exe -m nuitka --standalone --onefile --output-dir=dist-nuitka --include-data-dir=static=static --assume-yes-for-downloads --windows-console-mode=force --output-filename=claude-tape-web.exe __main__.py
+```
+
+输出：`dist-nuitka\claude-tape-web.exe`
+
+> **注意**：不建议使用 PyInstaller 打包。PyInstaller 的 bootloader 会将控制台控制信号（CTRL_C_EVENT）传播给通过 winpty 创建的子进程，导致 Claude CLI 立即退出（退出码 `0xC000013A`）。Nuitka 将 Python 编译为原生 C 代码，不存在此问题。
+
 ## 配置说明
 
 ### 配置文件位置

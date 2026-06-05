@@ -18,7 +18,7 @@ RECV_TIMEOUT = 300
 
 
 def make_router(get_runtime, store: SessionStore, pty_manager: PtyManager) -> APIRouter:
-    """get_runtime() → config, lazily resolved at connection time for testability."""
+    """get_runtime() -> config, lazily resolved at connection time for testability."""
     router = APIRouter()
 
     @router.websocket("/ws/term")

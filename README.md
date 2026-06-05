@@ -93,6 +93,18 @@ Smooth multi-tab experience — no more being limited to a single session per pa
 
 For external access, refer to the ngrok configuration below.
 
+## Build Standalone Executable
+
+Package as a single portable exe with Nuitka:
+
+```powershell
+.\.venv\Scripts\python.exe -m nuitka --standalone --onefile --output-dir=dist-nuitka --include-data-dir=static=static --assume-yes-for-downloads --windows-console-mode=force --output-filename=claude-tape-web.exe __main__.py
+```
+
+Output: `dist-nuitka\claude-tape-web.exe`
+
+> **Note**: PyInstaller is not recommended for this project. Its bootloader propagates console control signals (CTRL_C_EVENT) to child processes spawned via winpty, causing Claude CLI to exit immediately with code `0xC000013A`. Nuitka compiles Python to native C and does not have this issue.
+
 ## Configuration
 
 ### Configuration File Location

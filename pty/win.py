@@ -1,9 +1,46 @@
 import asyncio
+import shutil
 import sys
+from pathlib import Path
 from .base import PtySession
 
 if sys.platform == "win32":
     from winpty import PtyProcess as _WinPtyProcess
+
+
+def _resolve_cmd(cmd: list[str]) -> list[str]:
+    """Resolve the executable to its full absolute path, then wrap if necessary.
+
+    Handles two common Claude CLI installation methods on Windows:
+      1. npm global install -> claude.cmd shim (e.g. %APPDATA%\\npm\\claude.cmd)
+         CreateProcess cannot execute .cmd directly; must go via cmd.exe /c.
+      2. Standalone binary  -> claude.exe (downloaded or installed via winget/scoop)
+         Can be handed to CreateProcess directly.
+
+    Using the resolved absolute path avoids PATH-search ambiguity where
+    CreateProcess may not see the full user PATH.
+    """
+    if not cmd:
+        return cmd
+    exe, *args = cmd
+
+    # Accept an already-absolute path (user configured full path in claude_bin)
+    p = Path(exe)
+    if p.is_absolute():
+        resolved = str(p)
+    else:
+        # Search PATH for the real file; shutil.which honours PATHEXT on Windows
+        # so it finds claude.cmd, claude.exe, etc. in the correct priority order.
+        resolved = shutil.which(exe)
+        if resolved is None:
+            return cmd  # not found -- let the OS surface the error naturally
+
+    if Path(resolved).suffix.lower() in (".cmd", ".bat"):
+        # .cmd/.bat must be interpreted by cmd.exe, not executed as a binary
+        return ["cmd.exe", "/c", resolved] + args
+
+    # Direct executable (.exe or no extension binary)
+    return [resolved] + args
 
 
 class WinPtySession(PtySession):
@@ -12,8 +49,12 @@ class WinPtySession(PtySession):
 
     @classmethod
     def create(cls, cmd: list[str], env: dict, cols: int, rows: int, cwd: str | None = None) -> "WinPtySession":
+        resolved = _resolve_cmd(cmd)
+        # Normalize cwd: strip trailing separator to avoid CreateProcess issues
+        if cwd:
+            cwd = cwd.rstrip("\\/")
         proc = _WinPtyProcess.spawn(
-            cmd,
+            resolved,
             cwd=cwd,
             env=env,
             dimensions=(rows, cols),
@@ -45,3 +86,10 @@ class WinPtySession(PtySession):
     @property
     def pid(self) -> int:
         return self._proc.pid
+
+    @property
+    def exitstatus(self) -> int | None:
+        try:
+            return self._proc.exitstatus
+        except Exception:
+            return None
