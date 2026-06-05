@@ -32,3 +32,7 @@ class PtySession(ABC):
     @abstractmethod
     def pid(self) -> int:
         ...
+
+    @property
+    def exitstatus(self) -> int | None:
+        return None
