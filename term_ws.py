@@ -10,7 +10,8 @@ from pty import create as create_pty
 from pty_manager import PtyManager
 
 from session_store import SessionStore
-from spawn import build_spawn
+from spawn import build_spawn, is_claude_target
+from session_clean import clean_for_claude
 
 log = logging.getLogger("term")
 
@@ -112,6 +113,18 @@ def make_router(get_runtime, store: SessionStore, pty_manager: PtyManager) -> AP
                     argv, env, cols, rows, cwd = build_spawn(
                         data, cfg.claude_bin, effective_sid, models=cfg.models,
                     )
+                    # Resuming into Claude (built-in profile, local OAuth): strip foreign
+                    # (non-Claude / unsigned) thinking blocks left by a prior model,
+                    # else their missing signatures 400 on the first request.
+                    # Best-effort: never let cleaning failures block the spawn.
+                    if resume_sid and is_claude_target(data, cfg.models):
+                        try:
+                            res = clean_for_claude(resume_sid)
+                            if res["removed"]:
+                                log.info("sanitized %s foreign thinking block(s) before resuming %s (ok=%s)",
+                                         res["removed"], resume_sid, res["ok"])
+                        except Exception as exc:
+                            log.warning("session clean skipped for %s: %s", resume_sid, exc)
                     try:
                         session = create_pty(argv, env, cols, rows, cwd)
                         entry = pty_manager.register(effective_sid, session)

@@ -1,4 +1,20 @@
+from urllib.parse import urlparse
+
 from env_builder import build as build_env
+
+
+def _is_anthropic_base_url(url: str) -> bool:
+    """True if the base_url points at Anthropic's official API (api.anthropic.com).
+
+    Such a target (API key + official base_url) is genuine Claude: it validates
+    thinking signatures exactly like the local-OAuth path, so it needs the same
+    foreign-thinking cleanup on resume.
+    """
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except Exception:
+        return False
+    return host == "api.anthropic.com" or host.endswith(".anthropic.com")
 
 
 def build_claude_command(
@@ -48,6 +64,30 @@ def apply_model_env(env: dict, models: list[dict] | None, model_id: str | None) 
         val = (chosen.get(key) or "").strip()
         if val:
             env[env_name] = val
+
+
+def is_claude_target(data: dict, models: list[dict] | None) -> bool:
+    """True if this spawn targets genuine Claude (validates thinking signatures).
+
+    Robust against inherited env: decided purely from the selected model_id and the
+    configured model list. Genuine Claude = any of:
+      * no model_id / unknown id  → built-in local-OAuth login
+      * a configured model with no base_url → local credentials
+      * a configured model whose base_url is Anthropic official (api.anthropic.com),
+        e.g. API key + official base_url
+    Only a configured model with a NON-Anthropic base_url (mimo etc.) is third-party
+    and is left untouched (full delivery).
+    """
+    mid = data.get("model_id")
+    if not mid:
+        return True
+    chosen = next((m for m in (models or []) if m.get("id") == mid), None)
+    if not chosen:
+        return True
+    base = (chosen.get("base_url") or "").strip()
+    if not base:
+        return True
+    return _is_anthropic_base_url(base)
 
 
 def build_spawn(data: dict, claude_bin: str, sid: str,
