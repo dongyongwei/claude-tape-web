@@ -58,6 +58,13 @@ const TRANSLATIONS = {
     confirm_delete:   "Delete this session?",
     confirm_cancel:   "Cancel",
     confirm_ok:       "Delete",
+    confirm_back:        "Close all sessions and go back?",
+    confirm_back_ok:     "Back",
+    confirm_close_tab:   "Close this session?",
+    confirm_close_tab_ok:"Close",
+    rename_title:        "Rename Session",
+    rename_save:         "Save",
+    rename_cancel:       "Cancel",
     default_model:    "Claude (local login)",
     builtin_tag:      "Built-in",
     model_del:        "Delete",
@@ -69,6 +76,8 @@ const TRANSLATIONS = {
     htm_title:        "Resume Session",
     htm_empty:        "No history",
     htm_open:         "Open",
+    tab_rename:       "Rename",
+    tab_model:        "Model",
   },
   zh: {
     gate_sub:         "请输入服务端访问令牌",
@@ -127,6 +136,13 @@ const TRANSLATIONS = {
     confirm_delete:   "确定要删除此会话吗？",
     confirm_cancel:   "取消",
     confirm_ok:       "删除",
+    confirm_back:        "关闭所有会话并返回首页？",
+    confirm_back_ok:     "返回",
+    confirm_close_tab:   "关闭此会话？",
+    confirm_close_tab_ok:"关闭",
+    rename_title:        "重命名会话",
+    rename_save:         "保存",
+    rename_cancel:       "取消",
     default_model:    "官方 Claude（本机登录）",
     builtin_tag:      "内置",
     model_del:        "删除",
@@ -138,6 +154,8 @@ const TRANSLATIONS = {
     htm_title:        "恢复历史会话",
     htm_empty:        "暂无历史",
     htm_open:         "打开",
+    tab_rename:       "重命名",
+    tab_model:        "模型",
   },
 };
 
@@ -270,15 +288,15 @@ async function patchSession(sid, body) {
 }
 
 // ---------- Confirm Dialog ----------
-function showConfirm(msg) {
+function showConfirm(msg, { okLabel, cancelLabel } = {}) {
   return new Promise((resolve) => {
     const overlay = document.createElement("div");
     overlay.className = "confirm-overlay";
     overlay.innerHTML = `<div class="confirm-card">
       <div class="confirm-msg">${esc(msg)}</div>
       <div class="confirm-actions">
-        <button class="confirm-cancel">${t("confirm_cancel")}</button>
-        <button class="confirm-ok">${t("confirm_ok")}</button>
+        <button class="confirm-cancel">${esc(cancelLabel || t("confirm_cancel"))}</button>
+        <button class="confirm-ok">${esc(okLabel || t("confirm_ok"))}</button>
       </div>
     </div>`;
     document.body.appendChild(overlay);
@@ -349,7 +367,8 @@ async function renderHistory() {
         </div>
         <span class="spacer"></span>
         <button class="act" data-act="${esc(s.sid)}" data-cwd="${esc(s.cwd)}"
-          data-model="${esc(s.model_id || "")}">${t("sess_activate")}</button>
+          data-model="${esc(s.model_id || "")}" data-orig-model="${esc(s.model_id || "")}"
+          data-status="${esc(s.status)}" data-tag="${esc(tag)}">${t("sess_activate")}</button>
         <div class="more-wrap">
           <button class="more-btn">${t("sess_more")}</button>
           <div class="more-drop hidden">
@@ -387,11 +406,22 @@ async function renderHistory() {
   });
 
   box.querySelectorAll("button.act").forEach((b) => {
-    b.onclick = () => connect({
-      resume: b.dataset.act,
-      cwd: b.dataset.cwd || undefined,
-      model_id: b.dataset.model || undefined,
-    });
+    b.onclick = async () => {
+      const sid = b.dataset.act;
+      const modelChanged = b.dataset.model !== b.dataset.origModel;
+      // An active session re-attaches to its already-running process, which keeps
+      // the model it was spawned with. To apply a freshly-picked model we must kill
+      // it first so the resume path respawns Claude with the new --model.
+      if (b.dataset.status === "active" && modelChanged) {
+        await fetch(`/api/sessions/${encodeURIComponent(sid)}/close${tokenQs()}`, { method: "POST" }).catch(() => {});
+      }
+      connect({
+        resume: sid,
+        cwd: b.dataset.cwd || undefined,
+        model_id: b.dataset.model || undefined,
+        label: b.dataset.tag || undefined,
+      });
+    };
   });
 
   box.querySelectorAll(".more-btn").forEach((btn) => {
@@ -498,6 +528,13 @@ async function renderHistory() {
 }
 
 // ---------- Tab Management ----------
+// Derive a tab label from a session NOTE/tag: first line, truncated with "…".
+function tabLabelFromTag(tag, fallback) {
+  const s = (tag || "").replace(/\s+/g, " ").trim();
+  if (!s) return fallback;
+  return s.length > 24 ? s.slice(0, 24) + "…" : s;
+}
+
 function createTabSession() {
   const id = ++_tabCounter;
   const panel = document.createElement("div");
@@ -523,6 +560,7 @@ function createTabSession() {
     fitAddon,
     ws: null,
     sid: null,
+    model_id: "",
     connectOpts: null,
     intentionalClose: false,
     reconnectTimer: null,
@@ -600,59 +638,147 @@ function renderTabStrip() {
     const active = tab.id === _activeTabId ? " active" : "";
     return `<div class="tab-btn${active}" data-tab-id="${tab.id}">
       <span class="tab-label">${esc(tab.label)}</span>
+      <button class="tab-more-btn" data-tab-more="${tab.id}">▾</button>
       <button class="tab-close" data-close-tab="${tab.id}">×</button>
     </div>`;
   }).join("");
-
-  strip.querySelectorAll(".tab-btn").forEach((btn) => {
-    const tabId = parseInt(btn.dataset.tabId);
-    btn.addEventListener("click", (e) => {
-      if (e.target.classList.contains("tab-close")) return;
-      activateTab(tabId);
-    });
-    btn.querySelector(".tab-label").addEventListener("dblclick", (e) => {
-      e.stopPropagation();
-      startRenameTab(tabId, e.currentTarget);
-    });
-  });
-
-  strip.querySelectorAll(".tab-close").forEach((btn) => {
-    const tabId = parseInt(btn.dataset.closeTab);
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      closeTab(tabId);
-    });
-  });
 }
 
-function startRenameTab(id, labelEl) {
+function startRenameTab(id) {
   const tab = _tabs.find((tb) => tb.id === id);
   if (!tab) return;
-  const origLabel = tab.label;
-  labelEl.contentEditable = "true";
-  labelEl.textContent = tab.label;
-  labelEl.focus();
 
-  const range = document.createRange();
-  range.selectNodeContents(labelEl);
-  window.getSelection().removeAllRanges();
-  window.getSelection().addRange(range);
+  const modal = $("rnm");
+  const input = $("rnm-input");
+  const saveBtn = $("rnm-save");
+  const cancelBtn = $("rnm-cancel");
 
-  let cancelled = false;
-  const onKey = (e) => {
-    if (e.key === "Enter") { e.preventDefault(); labelEl.blur(); }
-    if (e.key === "Escape") { cancelled = true; e.preventDefault(); labelEl.blur(); }
-  };
-  labelEl.addEventListener("keydown", onKey);
-  labelEl.addEventListener("blur", () => {
-    labelEl.removeEventListener("keydown", onKey);
-    labelEl.contentEditable = "false";
-    if (!cancelled) {
-      tab.label = labelEl.textContent.trim() || origLabel;
+  $("rnm-title").textContent = t("rename_title");
+  saveBtn.textContent   = t("rename_save");
+  cancelBtn.textContent = t("rename_cancel");
+  input.value = tab.label;
+
+  modal.classList.remove("hidden");
+  requestAnimationFrame(() => { input.focus(); input.select(); });
+
+  const close = (save) => {
+    modal.classList.add("hidden");
+    saveBtn.removeEventListener("click", onSave);
+    cancelBtn.removeEventListener("click", onCancel);
+    input.removeEventListener("keydown", onKey);
+    modal.removeEventListener("click", onOverlay);
+    if (save) {
+      const newLabel = input.value.trim() || tab.label;
+      if (newLabel !== tab.label) {
+        tab.label = newLabel;
+        if (tab.sid) patchSession(tab.sid, { tag: newLabel }).catch(() => {});
+        renderTabStrip();
+      }
     }
-    renderTabStrip();
-  }, { once: true });
+  };
+
+  const onSave    = () => close(true);
+  const onCancel  = () => close(false);
+  const onKey     = (e) => {
+    if (e.key === "Enter")  { e.preventDefault(); close(true); }
+    if (e.key === "Escape") { e.preventDefault(); close(false); }
+  };
+  const onOverlay = (e) => { if (e.target === modal) close(false); };
+
+  saveBtn.addEventListener("click", onSave);
+  cancelBtn.addEventListener("click", onCancel);
+  input.addEventListener("keydown", onKey);
+  modal.addEventListener("click", onOverlay);
 }
+
+// ---------- Tab Strip — delegated handlers (wired once, survive innerHTML resets) ----------
+(function() {
+  const strip = $("tab-strip");
+
+  strip.addEventListener("click", (e) => {
+    if (e.target.tagName === "INPUT") return;
+
+    const moreBtn = e.target.closest(".tab-more-btn");
+    if (moreBtn) {
+      e.stopPropagation();
+      const tabId = parseInt(moreBtn.dataset.tabMore);
+      const drop = $("tab-more-drop");
+      const wasOpen = !drop.classList.contains("hidden") && drop.dataset.forTab == tabId;
+      closeAllMenus();
+      if (!wasOpen) openTabMoreDrop(tabId, moreBtn);
+      return;
+    }
+
+    const closeBtn = e.target.closest(".tab-close");
+    if (closeBtn) {
+      const tabId = parseInt(closeBtn.dataset.closeTab);
+      showConfirm(t("confirm_close_tab"), { okLabel: t("confirm_close_tab_ok") })
+        .then((ok) => { if (ok) closeTab(tabId); });
+      return;
+    }
+
+    const btn = e.target.closest(".tab-btn");
+    if (btn) activateTab(parseInt(btn.dataset.tabId));
+  });
+})();
+
+// ---------- Tab More Dropdown ----------
+function openTabMoreDrop(tabId, anchorBtn) {
+  const tab = _tabs.find((tb) => tb.id === tabId);
+  if (!tab) return;
+  const drop = $("tab-more-drop");
+  drop.dataset.forTab = String(tabId);
+
+  const modelOpts = _allModels().map((m) =>
+    `<option value="${esc(m.id)}"${m.id === (tab.model_id || "") ? " selected" : ""}>${esc(m.name)}</option>`
+  ).join("");
+
+  drop.innerHTML = `
+    <div class="tab-more-model-row">
+      <span>${t("tab_model")}</span>
+      <select data-prev-model="${esc(tab.model_id || "")}">${modelOpts}</select>
+    </div>
+    <div class="tab-more-sep"></div>
+    <button class="tmi">${t("tab_rename")}</button>`;
+
+  drop.querySelector("select").addEventListener("change", async function() {
+    const newId = this.value;
+    const newName = this.options[this.selectedIndex].text;
+    const prevModel = this.dataset.prevModel;
+    closeAllMenus();
+    try {
+      if (tab.sid) await patchSession(tab.sid, { model_id: newId, model_name: newName });
+      tab.model_id = newId;
+      if (tab.sid) {
+        await fetch(`/api/sessions/${encodeURIComponent(tab.sid)}/close${tokenQs()}`, { method: "POST" }).catch(() => {});
+        tab.intentionalClose = true;
+        clearTimeout(tab.reconnectTimer);
+        clearInterval(tab.heartbeat);
+        if (tab.ws) { try { tab.ws.close(); } catch (_) {} }
+        connectTab(tab, { ...tab.connectOpts, resume: tab.sid, model_id: newId });
+      }
+    } catch (_) {
+      this.value = prevModel;
+      tab.model_id = prevModel;
+    }
+  });
+
+  drop.querySelector(".tmi").onclick = () => {
+    closeAllMenus();
+    startRenameTab(tabId);
+  };
+
+  // Position dropdown anchored below the button, right-aligned
+  const rect = anchorBtn.getBoundingClientRect();
+  const barRect = $("bar").getBoundingClientRect();
+  drop.style.top = (rect.bottom - barRect.top + 4) + "px";
+  drop.style.right = Math.max(0, barRect.right - rect.right) + "px";
+  drop.style.left = "auto";
+  drop.classList.remove("hidden");
+}
+
+// Prevent clicks inside the dropdown from bubbling to document (would close it)
+$("tab-more-drop").addEventListener("click", (e) => e.stopPropagation());
 
 function sendToTab(tab, obj) {
   if (tab.ws && tab.ws.readyState === WebSocket.OPEN) {
@@ -682,6 +808,7 @@ function connectTab(tab, opts) {
   clearInterval(tab.heartbeat);
   tab.intentionalClose = false;
   tab.connectOpts = opts;
+  tab.model_id = opts.model_id || "";
   tab.terminal.clear();
 
   if (!tab.panel.classList.contains("hidden")) {
@@ -740,12 +867,15 @@ function connect(opts) {
   $("home").classList.add("hidden");
   $("termview").classList.remove("hidden");
   const tab = createTabSession();
+  if (opts && opts.label) tab.label = tabLabelFromTag(opts.label, tab.label);
   activateTab(tab.id);
   connectTab(tab, opts);
 }
 
 // ---------- Back Button ----------
-$("back").onclick = () => {
+$("back").onclick = async () => {
+  const confirmed = await showConfirm(t("confirm_back"), { okLabel: t("confirm_back_ok") });
+  if (!confirmed) return;
   [..._tabs].forEach((tab) => {
     tab.intentionalClose = true;
     clearTimeout(tab.reconnectTimer);
@@ -803,7 +933,7 @@ $("tab-resume").onclick = async () => {
         <span class="when">${esc(fmtWhen(s.last_active_at))}</span>
         <span class="htm-tag">${esc(s.tag || s.cwd || s.sid.slice(0, 8))}</span>
         <button class="htm-open" data-sid="${esc(s.sid)}"
-          data-cwd="${esc(s.cwd || "")}"
+          data-cwd="${esc(s.cwd || "")}" data-tag="${esc(s.tag || "")}"
           data-model="${esc(s.model_id || "")}">${t("htm_open")}</button>
       </div>`).join("");
 
@@ -811,6 +941,7 @@ $("tab-resume").onclick = async () => {
       btn.onclick = () => {
         $("htm").classList.add("hidden");
         const tab = createTabSession();
+        tab.label = tabLabelFromTag(btn.dataset.tag, tab.label);
         activateTab(tab.id);
         connectTab(tab, {
           resume: btn.dataset.sid,
@@ -1010,6 +1141,7 @@ window.addEventListener("resize", () => {
 // ---------- Menus ----------
 function closeAllMenus() {
   document.querySelectorAll(".more-drop").forEach((d) => d.classList.add("hidden"));
+  $("tab-more-drop").classList.add("hidden");
 }
 document.addEventListener("click", closeAllMenus);
 
