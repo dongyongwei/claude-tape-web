@@ -225,7 +225,7 @@ dist-nuitka/
 __main__.build/
 __main__.dist/
 __main__.onefile-build/
-
+brand
 
 # 以下是临时打开项
 docs
@@ -233,3 +233,5 @@ docs
 CLAUDE.md
 .workbuddy
 .gitignore
+static/DESIGN.md
+static/MEMORY.md
