@@ -119,7 +119,7 @@ def create_app(cfg: ServeConfig | None = None, store: SessionStore | None = None
         return {"applied": True, "restart_required": restart}
 
     app.include_router(make_router(lambda: runtime.cfg, store, pty_manager))
-    app.include_router(make_cloud_router(lambda: runtime.cfg))
+    app.include_router(make_cloud_router(lambda: runtime.cfg, store))
 
     @app.get("/")
     def index():

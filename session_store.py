@@ -127,6 +127,11 @@ class SessionStore:
         except OSError:
             return False
 
+    def get(self, sid: str) -> "dict | None":
+        """Return one session record by sid, or None."""
+        path = self._find(sid)
+        return self._read(path) if path else None
+
     def _find(self, sid: str) -> "Path | None":
         if not self._root.exists():
             return None
