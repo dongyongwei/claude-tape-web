@@ -1,5 +1,8 @@
 import json
+import threading
 from pathlib import Path
+
+_lock = threading.Lock()
 
 DEFAULT_BASE_URL = "https://py11.serv.qd-hyh-tech.com"
 # 与 config.json / token 同目录，升级保留
@@ -15,7 +18,9 @@ def load() -> dict:
 
 def save(data: dict) -> None:
     CLOUD_FILE.parent.mkdir(parents=True, exist_ok=True)
-    CLOUD_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp = CLOUD_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(CLOUD_FILE)
 
 
 def get_base_url() -> str:
@@ -27,15 +32,17 @@ def get_token() -> "str | None":
 
 
 def set_token(token: "str | None") -> None:
-    data = load()
-    if token:
-        data["token"] = token
-    else:
-        data.pop("token", None)
-    save(data)
+    with _lock:
+        data = load()
+        if token:
+            data["token"] = token
+        else:
+            data.pop("token", None)
+        save(data)
 
 
 def set_base_url(base_url: str) -> None:
-    data = load()
-    data["base_url"] = base_url.rstrip("/")
-    save(data)
+    with _lock:
+        data = load()
+        data["base_url"] = base_url.rstrip("/")
+        save(data)
