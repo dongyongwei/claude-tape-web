@@ -78,6 +78,18 @@ const TRANSLATIONS = {
     htm_open:         "Open",
     tab_rename:       "Rename",
     tab_model:        "Model",
+    cloud_title:       "Cloud",
+    cloud_unbound:     "Not connected",
+    cloud_bound:       "Connected",
+    cloud_base_url:    "Cloud server",
+    cloud_connect:     "Connect",
+    cloud_logout:      "Disconnect",
+    cloud_enter_code:  "Confirm this code in your browser:",
+    cloud_open_browser:"Open authorization page",
+    cloud_waiting:     "Waiting for confirmation…",
+    cloud_cancel:      "Cancel",
+    cloud_connected_ok:"Connected to cloud",
+    cloud_err:         "Cloud error",
   },
   zh: {
     gate_sub:         "请输入服务端访问令牌",
@@ -156,6 +168,18 @@ const TRANSLATIONS = {
     htm_open:         "打开",
     tab_rename:       "重命名",
     tab_model:        "模型",
+    cloud_title:       "云端",
+    cloud_unbound:     "未连接",
+    cloud_bound:       "已连接",
+    cloud_base_url:    "云端服务器",
+    cloud_connect:     "连接云端",
+    cloud_logout:      "解绑",
+    cloud_enter_code:  "请在浏览器确认此验证码：",
+    cloud_open_browser:"打开授权页面",
+    cloud_waiting:     "等待确认中…",
+    cloud_cancel:      "取消",
+    cloud_connected_ok:"已连接云端",
+    cloud_err:         "云端错误",
   },
 };
 
@@ -1037,6 +1061,7 @@ async function showConfig() {
   $("cfg-dirs").value = (cfg.project_dirs || []).join("\n");
   renderModels(cfg.models);
   _lastCfgModels = cfg.models || [];
+  await loadCloudStatus();
   cfgStatus("");
 }
 
@@ -1058,7 +1083,7 @@ function collectConfig() {
 }
 
 $("config").onclick = () => showConfig().catch((e) => cfgStatus(e.message, "#e57373"));
-$("cfg-back").onclick = () => showHome();
+$("cfg-back").onclick = () => { stopCloudPoll(); showHome(); };
 $("cfg-add-model").onclick = () => {
   const tbody = $("cfg-models").querySelector("tbody");
   if (tbody) { tbody.insertAdjacentHTML("beforeend", modelRowHtml({ id: nextModelId() })); bindModelDel(); }
@@ -1128,6 +1153,69 @@ $("cfg-apply").onclick = async () => {
   } catch (e) {
     cfgStatus(e.message, "#e57373");
   }
+};
+
+// ---------- Cloud ----------
+let _cloudPoll = null;
+
+async function loadCloudStatus() {
+  try {
+    const s = await fetch(`/api/cloud/status${tokenQs()}`).then((r) => r.json());
+    $("cloud-base-url").value = s.base_url || "";
+    const bound = !!s.bound;
+    $("cloud-dot").classList.toggle("on", bound);
+    $("cloud-status-text").textContent = t(bound ? "cloud_bound" : "cloud_unbound");
+    $("cloud-logout").style.display = s.configured ? "" : "none";
+  } catch (e) { /* offline/unconfigured: keep unconnected state */ }
+}
+
+function stopCloudPoll() {
+  if (_cloudPoll) { clearInterval(_cloudPoll); _cloudPoll = null; }
+}
+
+$("cloud-connect").onclick = async () => {
+  // Save possibly-changed base_url first
+  const url = $("cloud-base-url").value.trim();
+  if (url) await fetch(`/api/cloud/base-url${tokenQs()}`, {
+    method: "PUT", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ base_url: url }),
+  }).catch(() => {});
+
+  const r = await fetch(`/api/cloud/device/start${tokenQs()}`, { method: "POST" });
+  if (!r.ok) { cfgStatus(t("cloud_err"), "#e57373"); return; }
+  const d = await r.json();
+  $("cloud-usercode").textContent = d.user_code;
+  const link = $("cloud-open-link");
+  link.href = d.verification_uri_complete || "#";
+  $("cloud-authbox").classList.remove("hidden");
+  if (d.verification_uri_complete) window.open(d.verification_uri_complete, "_blank", "noopener");
+
+  const interval = Math.max(2, (d.interval || 3)) * 1000;
+  stopCloudPoll();
+  _cloudPoll = setInterval(async () => {
+    const p = await fetch(`/api/cloud/device/poll${tokenQs()}`, { method: "POST" })
+      .then((x) => x.json()).catch(() => ({ status: "error" }));
+    if (p.status === "approved") {
+      stopCloudPoll();
+      $("cloud-authbox").classList.add("hidden");
+      cfgStatus(t("cloud_connected_ok"), "#4caf50");
+      await loadCloudStatus();
+    } else if (p.status === "error" || p.status === "consumed") {
+      stopCloudPoll();
+      $("cloud-authbox").classList.add("hidden");
+      cfgStatus(t("cloud_err"), "#e57373");
+    }
+  }, interval);
+};
+
+$("cloud-auth-cancel").onclick = () => {
+  stopCloudPoll();
+  $("cloud-authbox").classList.add("hidden");
+};
+
+$("cloud-logout").onclick = async () => {
+  await fetch(`/api/cloud/logout${tokenQs()}`, { method: "POST" }).catch(() => {});
+  await loadCloudStatus();
 };
 
 // ---------- Resize ----------

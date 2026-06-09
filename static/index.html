@@ -754,6 +754,18 @@
     .confirm-cancel:hover { background: var(--s3); }
     .confirm-ok { background: var(--accent-g); color: #fff; }
     .confirm-ok:hover { filter: brightness(1.08); }
+
+    /* ── Cloud card ── */
+    .cloud-status { display:flex; align-items:center; gap:8px; font-size:13.5px; color:var(--t2,#6e6e73); margin-bottom:12px; }
+    .cloud-dot { width:8px; height:8px; border-radius:50%; background:#aeaeb2; }
+    .cloud-dot.on { background:#28a745; }
+    .cloud-btn-primary { padding:8px 15px; font-size:13.5px; font-weight:550; border:none; border-radius:8px; cursor:pointer; color:#fff; background:linear-gradient(145deg,#E78A6A,#C45A3A); }
+    .cloud-btn-ghost { padding:8px 15px; font-size:13.5px; border:1px solid rgba(0,0,0,.08); border-radius:8px; cursor:pointer; background:transparent; color:#6e6e73; }
+    .cloud-authbox { margin-top:16px; padding:16px; border-radius:14px; background:rgba(196,90,58,.06); border:1px solid rgba(196,90,58,.18); text-align:center; }
+    .cloud-authbox-label { font-size:12px; color:#6e6e73; }
+    .cloud-usercode { font-family:"SF Mono","JetBrains Mono",monospace; font-size:28px; font-weight:700; letter-spacing:3px; color:#C45A3A; margin:10px 0; }
+    .cloud-link { display:inline-block; font-size:13.5px; color:#0071e3; text-decoration:none; margin-bottom:10px; }
+    .cloud-auth-hint { font-size:12px; color:#aeaeb2; margin-bottom:10px; }
   </style>
 </head>
 <body>
@@ -943,6 +955,29 @@
           <button id="cfg-export-model" class="cfg-add" data-i18n="cfg_export_model">↓ Export</button>
         </div>
         <input type="file" id="cfg-import-file" accept=".json" style="display:none">
+      </div>
+      <div class="cfg-card" id="cloud-card">
+        <div class="cfg-h" data-i18n="cloud_title">Cloud</div>
+        <div id="cloud-status-line" class="cloud-status">
+          <span id="cloud-dot" class="cloud-dot"></span>
+          <span id="cloud-status-text" data-i18n="cloud_unbound">Not connected</span>
+        </div>
+        <label class="cfg-field" data-i18n-wrap>
+          <span data-i18n="cloud_base_url">Cloud server</span>
+          <input id="cloud-base-url" type="text" />
+        </label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+          <button id="cloud-connect" class="cloud-btn-primary" data-i18n="cloud_connect">Connect</button>
+          <button id="cloud-logout" class="cloud-btn-ghost" data-i18n="cloud_logout">Disconnect</button>
+        </div>
+        <!-- device authorization in progress -->
+        <div id="cloud-authbox" class="cloud-authbox hidden">
+          <div class="cloud-authbox-label" data-i18n="cloud_enter_code">Confirm this code in your browser:</div>
+          <div id="cloud-usercode" class="cloud-usercode">----</div>
+          <a id="cloud-open-link" class="cloud-link" target="_blank" rel="noopener" data-i18n="cloud_open_browser">Open authorization page</a>
+          <div id="cloud-auth-hint" class="cloud-auth-hint" data-i18n="cloud_waiting">Waiting for confirmation…</div>
+          <button id="cloud-auth-cancel" class="cloud-btn-ghost" data-i18n="cloud_cancel">Cancel</button>
+        </div>
       </div>
       <div class="cfg-actions">
         <button id="cfg-save" data-i18n="cfg_save">Save</button>
