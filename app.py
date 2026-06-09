@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from config import ServeConfig, resolve_write_path, save_config
 from pty_manager import PtyManager
 from session_store import SessionStore
+from cloud_routes import make_cloud_router
 from term_ws import make_router
 from token_store import clear_saved_token, save_token
 
@@ -118,6 +119,7 @@ def create_app(cfg: ServeConfig | None = None, store: SessionStore | None = None
         return {"applied": True, "restart_required": restart}
 
     app.include_router(make_router(lambda: runtime.cfg, store, pty_manager))
+    app.include_router(make_cloud_router(lambda: runtime.cfg))
 
     @app.get("/")
     def index():
