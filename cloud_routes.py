@@ -1,3 +1,5 @@
+import threading
+
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
 import cloud_client
@@ -9,6 +11,7 @@ def make_cloud_router(get_runtime):
     pending device_code 留在本地后端内存，不下发浏览器。"""
     router = APIRouter(prefix="/api/cloud")
     pending = {"device_code": None}
+    _pending_lock = threading.Lock()
 
     def require_token(token: str = Query("")) -> None:
         cfg = get_runtime()
@@ -25,7 +28,7 @@ def make_cloud_router(get_runtime):
     @router.put("/base-url", dependencies=[Depends(require_token)])
     def set_base_url(body: dict = Body(...)):
         url = str(body.get("base_url") or "").strip()
-        if not url.startswith("http"):
+        if not url.startswith(("http://", "https://")):
             raise HTTPException(status_code=400, detail="invalid base_url")
         cloud_store.set_base_url(url)
         return {"base_url": cloud_store.get_base_url()}
@@ -36,7 +39,8 @@ def make_cloud_router(get_runtime):
         st, body = cloud_client.device_start(base)
         if st != 200:
             raise HTTPException(status_code=502, detail=body.get("detail", "cloud error"))
-        pending["device_code"] = body["device_code"]
+        with _pending_lock:
+            pending["device_code"] = body["device_code"]
         # 不下发 device_code，只给浏览器展示所需
         return {
             "user_code": body["user_code"],
@@ -47,7 +51,8 @@ def make_cloud_router(get_runtime):
 
     @router.post("/device/poll", dependencies=[Depends(require_token)])
     def device_poll():
-        dc = pending.get("device_code")
+        with _pending_lock:
+            dc = pending.get("device_code")
         if not dc:
             raise HTTPException(status_code=400, detail="no pending authorization")
         base = cloud_store.get_base_url()
@@ -56,14 +61,16 @@ def make_cloud_router(get_runtime):
             return {"status": "error", "detail": body.get("detail", "")}
         if body.get("status") == "approved" and body.get("token"):
             cloud_store.set_token(body["token"])
-            pending["device_code"] = None
+            with _pending_lock:
+                pending["device_code"] = None
             return {"status": "approved"}
         return {"status": body.get("status", "pending")}
 
     @router.post("/logout", dependencies=[Depends(require_token)])
     def logout():
         cloud_store.set_token(None)
-        pending["device_code"] = None
+        with _pending_lock:
+            pending["device_code"] = None
         return {"ok": True}
 
     return router
