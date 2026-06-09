@@ -90,6 +90,11 @@ const TRANSLATIONS = {
     cloud_cancel:      "Cancel",
     cloud_connected_ok:"Connected to cloud",
     cloud_err:         "Cloud error",
+    cloud_save_title:   "Save to cloud",
+    cloud_saving:       "Saving to cloud…",
+    cloud_saved:        "Saved to cloud (v{v})",
+    cloud_save_err:     "Save failed",
+    cloud_not_connected:"Connect cloud in Config first",
   },
   zh: {
     gate_sub:         "请输入服务端访问令牌",
@@ -180,6 +185,11 @@ const TRANSLATIONS = {
     cloud_cancel:      "取消",
     cloud_connected_ok:"已连接云端",
     cloud_err:         "云端错误",
+    cloud_save_title:   "保存到云端",
+    cloud_saving:       "正在保存到云端…",
+    cloud_saved:        "已保存到云端（v{v}）",
+    cloud_save_err:     "保存失败",
+    cloud_not_connected:"请先在配置里连接云端",
   },
 };
 
@@ -1230,6 +1240,27 @@ $("cloud-auth-cancel").onclick = () => {
 $("cloud-logout").onclick = async () => {
   await fetch(`/api/cloud/logout${tokenQs()}`, { method: "POST" }).catch(() => {});
   await loadCloudStatus();
+};
+
+// ---------- Cloud Save Button ----------
+$("btn-cloud-save").onclick = async () => {
+  const tab = getActiveTab();
+  if (!tab || !tab.sid) return;
+  const btn = $("btn-cloud-save");
+  btn.setAttribute("data-busy", "1");
+  $("status").textContent = t("cloud_saving");
+  try {
+    const r = await fetch(`/api/cloud/sync/${encodeURIComponent(tab.sid)}${tokenQs()}`,
+                          { method: "POST" });
+    const body = await r.json().catch(() => ({}));
+    if (r.status === 400) { $("status").textContent = t("cloud_not_connected"); return; }
+    if (!r.ok) throw new Error(body.detail || t("cloud_save_err"));
+    $("status").textContent = t("cloud_saved").replace("{v}", body.version);
+  } catch (e) {
+    $("status").textContent = e.message || t("cloud_save_err");
+  } finally {
+    btn.removeAttribute("data-busy");
+  }
 };
 
 // ---------- Resize ----------
