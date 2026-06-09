@@ -766,6 +766,9 @@
     .cloud-usercode { font-family:"SF Mono","JetBrains Mono",monospace; font-size:28px; font-weight:700; letter-spacing:3px; color:#C45A3A; margin:10px 0; }
     .cloud-link { display:inline-block; font-size:13.5px; color:#0071e3; text-decoration:none; margin-bottom:10px; }
     .cloud-auth-hint { font-size:12px; color:#aeaeb2; margin-bottom:10px; }
+    .cloud-save-btn { border:none; background:transparent; cursor:pointer; font-size:15px; padding:4px 8px; border-radius:8px; color:#6e6e73; }
+    .cloud-save-btn:hover { background:rgba(196,90,58,.10); color:#C45A3A; }
+    .cloud-save-btn[data-busy] { opacity:.5; pointer-events:none; }
   </style>
 </head>
 <body>
@@ -867,6 +870,7 @@
       <button id="back" data-i18n="btn_back">← Back</button>
       <div id="tab-strip"></div>
       <button id="tab-resume" data-i18n-title="htm_title">⊕</button>
+      <button id="btn-cloud-save" class="cloud-save-btn" data-i18n-title="cloud_save_title" title="Save to cloud">☁︎</button>
       <button id="tab-add">+</button>
       <div id="tab-more-drop" class="hidden"></div>
       <span id="status"></span>
