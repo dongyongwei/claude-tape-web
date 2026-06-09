@@ -7,6 +7,13 @@ import cloud_store
 import session_clean
 
 
+def _safe_int(v, default):
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return default
+
+
 def make_cloud_router(get_runtime, store=None):
     """get_runtime() -> cfg，用于 ?token= 鉴权（与 app.py 一致）。
     pending device_code 留在本地后端内存，不下发浏览器。"""
@@ -76,6 +83,8 @@ def make_cloud_router(get_runtime, store=None):
 
     @router.post("/sync/{sid}", dependencies=[Depends(require_token)])
     def sync_session(sid: str):
+        if store is None:
+            raise HTTPException(status_code=503, detail="session store unavailable")
         token = cloud_store.get_token()
         if not token:
             raise HTTPException(status_code=400, detail="cloud not connected")
@@ -86,7 +95,8 @@ def make_cloud_router(get_runtime, store=None):
         if not files:
             raise HTTPException(status_code=404, detail="transcript not found")
         try:
-            content = open(files[0], encoding="utf-8").read()
+            with open(files[0], encoding="utf-8") as fh:
+                content = fh.read()
         except OSError as e:
             raise HTTPException(status_code=500, detail=f"read transcript failed: {e}")
         payload = {
@@ -96,8 +106,8 @@ def make_cloud_router(get_runtime, store=None):
             "tag": rec.get("tag", ""),
             "model_id": rec.get("model_id", ""),
             "model_name": rec.get("model_name", ""),
-            "cols": int(rec.get("cols", 120)),
-            "rows": int(rec.get("rows", 30)),
+            "cols": _safe_int(rec.get("cols"), 120),
+            "rows": _safe_int(rec.get("rows"), 30),
         }
         base = cloud_store.get_base_url()
         st, body = cloud_client.sync(base, token, payload)

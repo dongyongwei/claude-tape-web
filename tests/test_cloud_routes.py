@@ -91,7 +91,7 @@ def test_sync_session_reads_transcript_and_posts(monkeypatch, tmp_path):
     assert captured["payload"]["model_name"] == "Kimi"
 
 
-def test_sync_session_unbound_401(monkeypatch, tmp_path):
+def test_sync_session_no_token_400(monkeypatch, tmp_path):
     monkeypatch.setattr(cloud_store, "CLOUD_FILE", tmp_path / "cloud.json")  # no token
     from config import ServeConfig
     import app as app_module
