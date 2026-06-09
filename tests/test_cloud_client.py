@@ -31,3 +31,21 @@ def test_verify_token(monkeypatch):
     monkeypatch.setattr(cloud_client, "_request",
                         lambda m, u, token=None, payload=None, timeout=15: (401, {"detail": "x"}))
     assert cloud_client.verify_token("https://x", "tok") is False
+
+
+def test_sync(monkeypatch):
+    captured = {}
+
+    def fake_request(method, url, token=None, payload=None, timeout=15):
+        captured.update(method=method, url=url, token=token, payload=payload)
+        return 200, {"session_id": 1, "version": 1, "changed": True,
+                     "line_count": 5, "data_size": 100,
+                     "used_bytes": 100, "quota_bytes": 1073741824}
+
+    monkeypatch.setattr(cloud_client, "_request", fake_request)
+    st, body = cloud_client.sync("https://x", "ctw_live_t", {"local_sid": "abc", "content": "..."})
+    assert st == 200 and body["changed"] is True
+    assert captured["method"] == "POST"
+    assert captured["url"] == "https://x/api/cloud/sync"
+    assert captured["token"] == "ctw_live_t"
+    assert captured["payload"]["local_sid"] == "abc"
