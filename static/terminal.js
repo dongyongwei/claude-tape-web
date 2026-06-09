@@ -1255,11 +1255,18 @@ $("btn-cloud-save").onclick = async () => {
     const body = await r.json().catch(() => ({}));
     if (r.status === 400) { $("status").textContent = t("cloud_not_connected"); return; }
     if (!r.ok) throw new Error(body.detail || t("cloud_save_err"));
-    $("status").textContent = t("cloud_saved").replace("{v}", body.version);
+    $("status").textContent = t("cloud_saved").replace("{v}", body.version ?? "?");
   } catch (e) {
     $("status").textContent = e.message || t("cloud_save_err");
   } finally {
     btn.removeAttribute("data-busy");
+    setTimeout(() => {
+      const active = getActiveTab();
+      if (active && $("status").textContent !== t("cloud_saving")) {
+        $("status").textContent = active.statusKey ? t(active.statusKey) : "";
+        if (active.statusColor) $("status").style.color = active.statusColor;
+      }
+    }, 3000);
   }
 };
 
