@@ -349,31 +349,36 @@
     }
     .cfg-field textarea { resize: vertical; }
 
-    /* Model rows */
-    .cfg-model-row {
-      display: flex; align-items: center; gap: 6px;
-      padding: 4px 0; font-size: 12px;
+    /* Model table */
+    .cfg-model-table {
+      width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed;
     }
-    .cfg-model-row input[type="checkbox"] {
-      accent-color: var(--accent);
+    .cfg-model-table thead th {
+      text-align: left; font-size: 10px; font-weight: 600; letter-spacing: .07em;
+      text-transform: uppercase; color: var(--t3);
+      padding: 2px 4px 6px; border-bottom: 1px solid var(--b);
     }
-    .cfg-model-name {
-      flex: 1; min-width: 0;
-    }
-    .cfg-model-name input {
-      width: 100%;
-      background: var(--s2); color: var(--t1);
+    .cfg-model-table thead th:first-child { width: 26px; text-align: center; }
+    .cfg-model-table thead th:last-child  { width: 30px; }
+    .cfg-model-table td { padding: 2px 2px; vertical-align: middle; }
+    .cfg-model-table input {
+      width: 100%; background: var(--s2); color: var(--t1);
       border: 1px solid transparent; border-radius: var(--rxs);
       padding: 3px 6px; font-size: 12px; outline: none;
       transition: border-color .12s;
     }
-    .cfg-model-name input:focus { border-color: var(--accent); }
-    .cfg-model-del {
-      background: transparent; border: none; cursor: pointer;
-      color: var(--t3); font-size: 14px; padding: 2px 4px;
-      border-radius: 3px; transition: color .1s, background .1s;
+    .cfg-model-table input:focus { border-color: var(--accent); }
+    .cfg-model-table input:disabled { opacity: .55; cursor: default; }
+    .cfg-builtin-tag {
+      font-size: 10px; color: var(--t3); border: 1px solid var(--b);
+      border-radius: 3px; padding: 1px 5px;
     }
-    .cfg-model-del:hover { color: var(--red); background: rgba(255,59,48,.08); }
+    .m-del {
+      background: transparent; border: none; cursor: pointer;
+      color: var(--t3); font-size: 13px; padding: 2px 4px;
+      border-radius: 3px; transition: color .1s, background .1s; white-space: nowrap;
+    }
+    .m-del:hover { color: var(--red); background: rgba(255,59,48,.08); }
 
     .cfg-actions {
       display: flex; gap: 8px; margin-top: 8px;
