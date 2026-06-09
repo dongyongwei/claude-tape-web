@@ -1,3 +1,4 @@
+import http.client
 import json
 import urllib.error
 import urllib.request
@@ -5,9 +6,12 @@ import urllib.request
 
 def _request(method, url, token=None, payload=None, timeout=15):
     """返回 (status:int, body:dict|list)。网络异常返回 (0, {"detail": ...})。"""
-    data = json.dumps(payload).encode("utf-8") if payload is not None else None
-    headers = {"Content-Type": "application/json"}
-    if token:
+    try:
+        data = json.dumps(payload).encode("utf-8") if payload is not None else None
+    except (TypeError, ValueError) as e:
+        return 0, {"detail": f"payload serialization error: {e}"}
+    headers = {"Content-Type": "application/json"} if data is not None else {}
+    if token is not None:
         headers["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
@@ -20,7 +24,7 @@ def _request(method, url, token=None, payload=None, timeout=15):
             return e.code, json.loads(raw)
         except Exception:
             return e.code, {"detail": raw}
-    except (urllib.error.URLError, OSError, TimeoutError) as e:
+    except (urllib.error.URLError, OSError, http.client.HTTPException) as e:
         return 0, {"detail": str(e)}
 
 
