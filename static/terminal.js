@@ -350,6 +350,7 @@ function fmtWhen(iso) {
 }
 
 async function showHome() {
+  stopCloudPoll();
   $("termview").classList.add("hidden");
   $("configview").classList.add("hidden");
   $("home").classList.remove("hidden");
@@ -1048,6 +1049,7 @@ function renderModels(models) {
 }
 
 async function showConfig() {
+  stopCloudPoll();
   $("home").classList.add("hidden");
   $("termview").classList.add("hidden");
   $("configview").classList.remove("hidden");
@@ -1186,26 +1188,38 @@ $("cloud-connect").onclick = async () => {
   const d = await r.json();
   $("cloud-usercode").textContent = d.user_code;
   const link = $("cloud-open-link");
-  link.href = d.verification_uri_complete || "#";
+  const verUri = typeof d.verification_uri_complete === "string" &&
+    d.verification_uri_complete.startsWith("http")
+    ? d.verification_uri_complete : "#";
+  link.href = verUri;
   $("cloud-authbox").classList.remove("hidden");
-  if (d.verification_uri_complete) window.open(d.verification_uri_complete, "_blank", "noopener");
+  if (verUri !== "#") window.open(verUri, "_blank", "noopener");
 
   const interval = Math.max(2, (d.interval || 3)) * 1000;
   stopCloudPoll();
+  let _expiryTimer = null;
   _cloudPoll = setInterval(async () => {
     const p = await fetch(`/api/cloud/device/poll${tokenQs()}`, { method: "POST" })
       .then((x) => x.json()).catch(() => ({ status: "error" }));
     if (p.status === "approved") {
+      if (_expiryTimer) { clearTimeout(_expiryTimer); _expiryTimer = null; }
       stopCloudPoll();
       $("cloud-authbox").classList.add("hidden");
       cfgStatus(t("cloud_connected_ok"), "#4caf50");
       await loadCloudStatus();
     } else if (p.status === "error" || p.status === "consumed") {
+      if (_expiryTimer) { clearTimeout(_expiryTimer); _expiryTimer = null; }
       stopCloudPoll();
       $("cloud-authbox").classList.add("hidden");
       cfgStatus(t("cloud_err"), "#e57373");
     }
   }, interval);
+  const expiresMs = Math.max(60, (d.expires_in || 600)) * 1000;
+  _expiryTimer = setTimeout(() => {
+    stopCloudPoll();
+    $("cloud-authbox").classList.add("hidden");
+    cfgStatus(t("cloud_err"), "#e57373");
+  }, expiresMs);
 };
 
 $("cloud-auth-cancel").onclick = () => {
