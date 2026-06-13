@@ -231,6 +231,7 @@ brand
 
 # 以下是临时打开项
 docs
+tests
 .superpowers
 CLAUDE.md
 .workbuddy
