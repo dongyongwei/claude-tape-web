@@ -220,6 +220,8 @@ __marimo__/
 # Claude Tape Web specific
 config.json
 .agent_win_serve/
+# Cross-project link: points to D:\_gitee\claude-tape-cloud (a separate private repo); kept only for local @-reference convenience, not part of this repo
+claude-tape-cloud/
 *.pyc
 dist-nuitka/
 __main__.build/
@@ -230,8 +232,8 @@ brand
 # 以下是临时打开项
 docs
 .superpowers
-CLAUDE.md
+# CLAUDE.md
 .workbuddy
-.gitignore
+# .gitignore
 static/DESIGN.md
 static/MEMORY.md

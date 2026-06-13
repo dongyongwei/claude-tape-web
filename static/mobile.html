@@ -7,11 +7,13 @@
   <link rel="icon" href="/static/favicon.ico" type="image/x-icon" />
   <link rel="stylesheet" href="/static/vendor/xterm.css" />
   <style>
-    :root {
+    :root{
       --bg:#f5f5f7; --s1:#fff; --s2:#f2f2f5; --s3:#e8e8ed;
       --b:rgba(0,0,0,.07); --bm:rgba(0,0,0,.12);
       --t1:#1d1d1f; --t2:#6e6e73; --t3:#aeaeb2;
       --blue:#0071e3; --green:#28a745; --red:#ff3b30;
+      --coral:#C45A3A; --coral2:#E78A6A;
+      --accent:var(--coral2); --accent-dk:var(--coral); --accent-bg:rgba(196,90,58,.1);
       --r:14px; --rsm:10px; --rxs:8px;
       --card-shadow:0 1px 4px rgba(0,0,0,.08),0 0 0 1px rgba(0,0,0,.05);
       --safe-b:env(safe-area-inset-bottom,0px);
@@ -20,17 +22,19 @@
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
     html,body{height:100%;background:var(--bg);color:var(--t1);
       font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
-      font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;
-      -webkit-text-size-adjust:100%;}
+      font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;}
     .hidden{display:none !important;}
     button,input,select,textarea{font-family:inherit;}
     ::-webkit-scrollbar{width:0;height:0;}
 
-    /* Gate */
-    #gate{position:fixed;inset:0;z-index:10;background:var(--bg);
+    /* ---------- Gate ---------- */
+    #gate{position:fixed;inset:0;z-index:100;background:var(--bg);
       display:flex;align-items:center;justify-content:center;padding:20px;}
     .gate-box{width:min(360px,92vw);background:var(--s1);border-radius:var(--r);
       padding:28px 22px;box-shadow:var(--card-shadow);}
+    .gate-brand{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:18px;}
+    .gate-brand-name{font-size:17px;font-weight:700;letter-spacing:-.02em;}
+    .gate-brand-name em{font-style:normal;color:var(--coral);}
     .gate-title{font-size:18px;font-weight:600;text-align:center;margin-bottom:4px;}
     .gate-sub{font-size:13px;color:var(--t3);text-align:center;margin-bottom:20px;}
     .gate-box input[type=password]{width:100%;background:var(--s2);color:var(--t1);
@@ -45,100 +49,135 @@
     #enter:active{filter:brightness(.95);}
     #gate-err{color:var(--red);font-size:13px;min-height:18px;margin-top:10px;text-align:center;}
 
-    /* Lang switcher */
-    #lang-sw{position:fixed;top:calc(8px + var(--safe-t));right:12px;z-index:99999;
-      display:flex;align-items:center;gap:2px;background:var(--s1);
-      border:1px solid var(--bm);border-radius:20px;padding:4px 10px;box-shadow:var(--card-shadow);}
-    .lb{background:none;border:none;cursor:pointer;font-size:13px;color:var(--t3);
-      padding:2px 5px;border-radius:4px;}
-    .lb.active{color:var(--t1);font-weight:600;}
-    .lb-sep{font-size:13px;color:var(--t3);}
+    /* ---------- App shell ---------- */
+    #app{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--bg);}
 
-    /* Home */
-    #home{position:fixed;inset:0;z-index:5;overflow-y:auto;background:var(--bg);
-      -webkit-overflow-scrolling:touch;}
-    .home-wrap{max-width:560px;margin:0 auto;padding:calc(20px + var(--safe-t)) 16px calc(40px + var(--safe-b));}
-    .brand{display:flex;align-items:center;gap:8px;margin-bottom:20px;}
-    .brand-name{font-size:19px;font-weight:700;letter-spacing:-.02em;color:var(--t1);}
-    .brand-name em{font-style:normal;color:#C45A3A;}
+    /* persistent top bar — controls hug the LEFT, center kept clear for the camera */
+    #bar{flex:none;display:flex;align-items:center;gap:8px;
+      height:calc(54px + var(--safe-t));padding:calc(8px + var(--safe-t)) 12px 0;
+      background:rgba(245,245,247,.92);backdrop-filter:saturate(1.6) blur(12px);
+      border-bottom:1px solid var(--b);position:relative;z-index:20;}
+    .icon-btn{width:40px;height:40px;flex:none;display:flex;align-items:center;justify-content:center;
+      background:var(--s1);border:1px solid var(--b);font-size:18px;color:var(--t1);cursor:pointer;
+      border-radius:11px;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+    .icon-btn:active{background:var(--s3);}
+    .grid-btn{position:relative;font-size:17px;}
+    .grid-btn .badge{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 4px;
+      background:var(--coral);color:#fff;font-size:10px;font-weight:700;border-radius:9px;
+      display:flex;align-items:center;justify-content:center;border:2px solid var(--bg);}
+    #bar .spacer{flex:1;}
+    #bar .ctx{font-size:13px;color:var(--t2);max-width:150px;text-align:right;line-height:1.25;}
+    #bar .ctx b{display:block;color:var(--t1);font-size:14px;font-weight:600;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;}
+    #bar .ctx span{display:block;font-size:11px;color:var(--t3);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;}
+
+    #bodyc{flex:1;min-height:0;position:relative;overflow:hidden;}
+    .view{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:none;}
+    .view.on{display:block;}
+    #v-term.on{display:flex;flex-direction:column;}
+
+    /* ---------- Home ---------- */
+    .home-wrap{max-width:560px;margin:0 auto;padding:18px 16px calc(40px + var(--safe-b));}
     .sec-label{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
-      color:var(--t3);padding:0 4px;margin:26px 0 8px;}
-    .sec-label:first-of-type{margin-top:0;}
+      color:var(--t3);padding:0 4px;margin:24px 0 8px;}
+    .sec-label:first-child{margin-top:2px;}
+    .sec-row{display:flex;align-items:center;justify-content:space-between;}
+    .sel-toggle{background:var(--s2);border:1px solid var(--bm);border-radius:var(--rxs);
+      padding:6px 14px;font-size:12px;color:var(--t2);cursor:pointer;}
+    .sel-toggle.on{background:var(--accent-bg);color:var(--coral);border-color:rgba(196,90,58,.3);}
     .home-card{background:var(--s1);border-radius:var(--r);box-shadow:var(--card-shadow);padding:14px;}
     .new-col{display:flex;flex-direction:column;gap:10px;}
     .new-col select{width:100%;background:var(--s2);color:var(--t1);border:1px solid var(--bm);
       border-radius:var(--rsm);padding:12px;font-size:15px;outline:none;appearance:auto;}
     .new-col #start{width:100%;background:var(--blue);color:#fff;border:none;border-radius:var(--rsm);
       padding:14px;font-size:16px;font-weight:500;cursor:pointer;}
-    .new-col #config{width:100%;background:var(--s2);color:var(--t2);border:1px solid var(--bm);
-      border-radius:var(--rsm);padding:12px;font-size:15px;cursor:pointer;}
 
-    /* History */
+    /* history — grouped + inline edit */
     .grp{margin-bottom:12px;}
-    .grp-head{display:flex;align-items:center;gap:8px;padding:10px 8px;border-radius:var(--rsm);
-      cursor:pointer;user-select:none;}
-    .grp-head .caret{color:var(--t3);font-size:12px;width:12px;text-align:center;}
-    .grp-head .path{color:var(--t2);font-size:13px;word-break:break-all;flex:1;}
-    .grp-head .count{font-size:11px;color:var(--t3);background:var(--s3);border-radius:20px;padding:2px 9px;}
-    .grp-body{display:flex;flex-direction:column;gap:10px;}
-    .scard{background:var(--s1);border-radius:var(--r);box-shadow:var(--card-shadow);padding:12px 14px;}
-    .scard-top{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
-    .scard-top .dot{width:8px;height:8px;flex:none;border-radius:50%;}
-    .scard-top .dot.active{background:var(--green);box-shadow:0 0 5px rgba(40,167,69,.4);}
-    .scard-top .dot.closed{background:var(--t3);}
-    .scard-top .when{color:var(--t2);font-size:13px;font-variant-numeric:tabular-nums;}
-    .scard-top .act{margin-left:auto;background:var(--green);color:#fff;border:none;
-      border-radius:var(--rxs);padding:8px 16px;font-size:14px;font-weight:500;cursor:pointer;}
-    .scard-row{display:flex;align-items:flex-start;gap:8px;margin-top:8px;}
-    .scard-row .lbl{font-size:12px;color:var(--t3);width:42px;flex:none;padding-top:9px;}
-    .scard-row .tag-input{flex:1;min-width:0;background:var(--s2);color:var(--t1);
-      border:1px solid var(--bm);border-radius:var(--rxs);padding:8px 10px;font-size:14px;
-      outline:none;resize:none;overflow:hidden;line-height:1.4;}
-    .scard-row .tag-input:focus{border-color:var(--blue);}
-    .scard-row .m-select{flex:1;min-width:0;background:var(--s2);color:var(--blue);
-      border:1px solid var(--bm);border-radius:var(--rxs);padding:8px 10px;font-size:14px;
-      outline:none;appearance:auto;}
-    .scard-row .pk-ok,.scard-row .pk-cancel,.scard-row .mi-del{flex:none;background:var(--s2);
-      color:var(--t2);border:1px solid var(--bm);border-radius:var(--rxs);padding:8px 12px;
-      font-size:13px;cursor:pointer;}
-    .scard-row .mi-del{color:var(--red);border-color:rgba(255,59,48,.25);}
-    .tag-btns{display:none;gap:6px;}
-    .tag-btns.visible{display:flex;}
-    .empty{color:var(--t3);font-size:14px;padding:14px 8px;}
+    .grp-head{display:flex;align-items:center;gap:8px;padding:8px 6px 6px;cursor:pointer;user-select:none;}
+    .grp-head .caret{color:var(--t3);font-size:11px;width:11px;flex:none;}
+    .grp-head .path{color:var(--t2);font-size:12px;font-family:"SF Mono",Consolas,monospace;
+      flex:1;word-break:break-all;}
+    .grp-head .count{font-size:10.5px;color:var(--t3);background:var(--s3);border-radius:20px;
+      padding:1px 9px;flex:none;}
+    .grp-body{display:flex;flex-direction:column;gap:8px;}
+    .grp-body.collapsed{display:none;}
+    .hsess{background:var(--s1);border-radius:var(--r);box-shadow:var(--card-shadow);padding:11px 12px;
+      display:flex;flex-direction:column;gap:9px;border:1.5px solid transparent;transition:border-color .12s;}
+    .hsess.sel{border-color:var(--coral);}
+    .hsess .r1{display:flex;align-items:center;gap:9px;}
+    .hsess .chk{display:none;width:19px;height:19px;accent-color:var(--coral);flex:none;margin:0;}
+    #history.select .hsess .chk{display:block;}
+    #history.select .hsess .act{display:none;}
+    .hsess .dot{width:8px;height:8px;flex:none;border-radius:50%;}
+    .hsess .dot.active{background:var(--green);box-shadow:0 0 5px rgba(40,167,69,.4);}
+    .hsess .dot.closed{background:var(--t3);}
+    .hsess .dot.open{background:var(--blue);box-shadow:0 0 5px rgba(0,113,227,.4);}
+    .hsess .nm{font-weight:600;font-size:14px;flex:1;min-width:0;white-space:nowrap;
+      overflow:hidden;text-overflow:ellipsis;}
+    .hsess .when{color:var(--t3);font-size:11.5px;flex:none;font-variant-numeric:tabular-nums;}
+    .hsess .act{background:var(--green);color:#fff;border:none;border-radius:var(--rxs);
+      padding:6px 15px;font-size:12.5px;font-weight:500;cursor:pointer;flex:none;}
+    .hsess .act.open{background:var(--blue);}
+    .hsess .r2{display:flex;align-items:center;gap:8px;}
+    .hsess .msel{flex:none;max-width:52%;background:var(--s2);color:var(--coral);border:1px solid var(--bm);
+      border-radius:var(--rxs);padding:6px 7px;font-size:12px;outline:none;appearance:auto;}
+    .hsess .note{flex:1;min-width:0;background:var(--s2);color:var(--t2);border:1px solid var(--bm);
+      border-radius:var(--rxs);padding:6px 9px;font-size:12px;outline:none;resize:none;overflow:hidden;
+      line-height:1.4;font-family:inherit;}
+    .hsess .note:focus,.hsess .msel:focus{border-color:var(--coral);}
+    .empty{color:var(--t3);font-size:14px;text-align:center;padding:30px 0;}
+    #history.select{padding-bottom:152px;}
 
-    /* Terminal */
-    #termview{position:fixed;inset:0;background:#1e1e1e;display:flex;flex-direction:column;}
-    #bar{display:flex;gap:10px;align-items:center;flex:none;
-      height:calc(48px + var(--safe-t));padding:var(--safe-t) 12px 0;
-      background:rgba(245,245,247,.95);border-bottom:1px solid var(--b);}
-    #back{background:var(--s2);color:var(--t2);border:1px solid var(--bm);border-radius:var(--rxs);
-      padding:8px 14px;font-size:14px;cursor:pointer;}
-    #bar .brand-name{font-size:15px;}
-    #status{margin-left:auto;font-size:12px;color:var(--t2);}
-    #term{flex:1;min-height:0;padding:4px;overflow:hidden;}
+    /* batch bar (select mode) — pinned to viewport bottom */
+    #batch-bar{position:fixed;left:0;right:0;bottom:0;z-index:60;background:rgba(255,255,255,.97);
+      backdrop-filter:blur(10px);border-top:1px solid var(--bm);
+      padding:10px 12px calc(12px + var(--safe-b));box-shadow:0 -6px 24px rgba(0,0,0,.1);}
+    .batch-info{display:flex;align-items:center;gap:12px;font-size:12.5px;color:var(--t2);margin-bottom:9px;}
+    .batch-info .lnk{color:var(--coral);cursor:pointer;font-weight:500;}
+    .batch-info .st{color:var(--t3);margin-left:auto;}
+    .batch-acts{display:flex;gap:7px;overflow-x:auto;}
+    .batch-acts::-webkit-scrollbar{height:0;}
+    .batch-acts button,.batch-acts select{flex:none;background:var(--s2);color:var(--t2);
+      border:1px solid var(--bm);border-radius:var(--rxs);padding:9px 14px;font-size:12.5px;
+      cursor:pointer;white-space:nowrap;outline:none;}
+    .batch-acts button:disabled{opacity:.4;}
+    .batch-acts .danger{color:var(--red);border-color:rgba(255,59,48,.25);}
+    .batch-acts .cancel{margin-left:auto;}
 
-    /* Keys toolbar */
-    #keys{flex:none;display:flex;gap:6px;overflow-x:auto;white-space:nowrap;
+    /* ---------- Terminal view ---------- */
+    #v-term{background:#1e1e1e;}
+    #term-stack{flex:1;min-height:0;position:relative;}
+    .term-panel{position:absolute;inset:0;padding:4px;overflow:hidden;display:none;}
+    .term-panel.on{display:block;}
+    #keys{flex:none;display:flex;flex-direction:column;gap:6px;
       padding:8px 10px calc(8px + var(--safe-b));background:#2a2a2e;
-      border-top:1px solid rgba(255,255,255,.08);-webkit-overflow-scrolling:touch;}
-    #keys::-webkit-scrollbar{height:0;}
-    .key{flex:none;min-width:46px;height:38px;display:inline-flex;align-items:center;justify-content:center;
+      border-top:1px solid rgba(255,255,255,.08);}
+    .keys-line{display:flex;gap:6px;}
+    /* extra keys hidden until expanded; main row (with the toggle) is always shown */
+    #keys-extra{display:none;flex-wrap:wrap;}
+    #keys.expanded #keys-extra{display:flex;}
+    /* extra keys are natural-width chips (so command labels fit) and wrap to more rows */
+    #keys-extra .key{flex:none;padding:0 12px;}
+    #keys-extra .key.cmd{font-size:12.5px;color:var(--coral2);}
+    .key{flex:1;min-width:0;height:38px;display:inline-flex;align-items:center;justify-content:center;
       background:#3a3a40;color:#eaeaea;border:1px solid rgba(255,255,255,.1);border-radius:8px;
-      font-size:14px;font-family:Consolas,monospace;cursor:pointer;user-select:none;padding:0 12px;}
+      font-size:14px;font-family:Consolas,monospace;cursor:pointer;user-select:none;padding:0 8px;}
     .key:active{background:#4a4a52;}
     .key.armed{background:var(--blue);color:#fff;border-color:var(--blue);}
+    .key-expand{flex:none;min-width:44px;font-size:16px;line-height:1;color:#aeaeb2;}
+    #keys.expanded .key-expand{background:var(--blue);color:#fff;border-color:var(--blue);}
+    /* keyboard toggle: soft keyboard stays suppressed until this is tapped (armed) */
+    .key-kb{flex:none;min-width:44px;font-size:17px;line-height:1;color:#aeaeb2;}
+    .term-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+      color:#7a7a7a;font-size:14px;text-align:center;padding:30px;}
 
-    /* Config */
-    #configview{position:fixed;inset:0;z-index:6;overflow-y:auto;background:var(--bg);
-      -webkit-overflow-scrolling:touch;}
-    #cfgbar{display:flex;gap:10px;align-items:center;height:calc(48px + var(--safe-t));
-      padding:var(--safe-t) 14px 0;background:rgba(245,245,247,.95);border-bottom:1px solid var(--b);
-      position:sticky;top:0;z-index:1;}
-    #cfg-back{background:var(--s2);color:var(--t2);border:1px solid var(--bm);border-radius:var(--rxs);
-      padding:8px 14px;font-size:14px;cursor:pointer;}
-    .cfg-title{font-size:15px;font-weight:600;}
-    #cfg-status{margin-left:auto;font-size:12px;color:var(--t2);}
+    /* ---------- Config view ---------- */
     #cfg-body{max-width:560px;margin:0 auto;padding:16px 14px calc(40px + var(--safe-b));}
+    .cfg-head{display:flex;align-items:center;gap:10px;margin:2px 4px 14px;}
+    .cfg-head .cfg-title{font-size:17px;font-weight:700;letter-spacing:-.02em;}
+    #cfg-status{font-size:12px;color:var(--t2);margin-left:auto;}
     .cfg-card{background:var(--s1);border-radius:var(--r);box-shadow:var(--card-shadow);
       padding:14px;margin-bottom:12px;}
     .cfg-h{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
@@ -149,6 +188,9 @@
       color:var(--t1);border:1px solid var(--bm);border-radius:var(--rsm);padding:11px;font-size:15px;
       outline:none;font-family:"SF Mono","Consolas",monospace;resize:vertical;}
     .cfg-field input:focus,.cfg-field textarea:focus{border-color:var(--blue);}
+    .cfg-token-row{display:flex;gap:8px;margin-top:6px;align-items:stretch;}
+    .cfg-token-row input{margin-top:0;flex:1;min-width:0;}
+    .cfg-token-status{display:block;font-size:11.5px;color:var(--t3);margin-top:6px;}
     .mcard{background:var(--s2);border:1px solid var(--b);border-radius:var(--rsm);
       padding:12px;margin-bottom:10px;}
     .mcard.builtin{opacity:.55;}
@@ -168,13 +210,129 @@
     .mcard input:disabled{opacity:.6;}
     .cfg-add{background:transparent;color:var(--blue);border:1px solid rgba(0,113,227,.3);
       border-radius:var(--rxs);padding:10px 14px;font-size:14px;cursor:pointer;}
-    .cfg-actions{display:flex;gap:10px;}
-    .cfg-actions button{flex:1;border-radius:var(--rsm);padding:13px;font-size:15px;font-weight:500;
-      cursor:pointer;border:none;}
-    #cfg-save{background:var(--s2);color:var(--t1);border:1px solid var(--bm) !important;}
-    #cfg-apply{background:var(--blue);color:#fff;}
+    .cfg-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+    .cfg-actions button{flex:1;min-width:120px;border-radius:var(--rsm);padding:13px;font-size:15px;
+      font-weight:500;cursor:pointer;border:none;}
+    #cfg-save{background:var(--s2);color:var(--t1);border:1px solid var(--bm) !important;flex:1;}
+    #cfg-apply{background:var(--blue);color:#fff;flex:1;}
 
-    /* Confirm dialog */
+    /* cloud card */
+    .cloud-status{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--t2);margin-bottom:12px;}
+    .cloud-dot{width:9px;height:9px;border-radius:50%;background:var(--t3);}
+    .cloud-dot.on{background:var(--green);box-shadow:0 0 5px rgba(40,167,69,.4);}
+    .cloud-btn-primary{background:var(--blue);color:#fff;border:none;border-radius:var(--rxs);
+      padding:10px 16px;font-size:14px;font-weight:500;cursor:pointer;}
+    .cloud-btn-ghost{background:var(--s2);color:var(--t2);border:1px solid var(--bm);
+      border-radius:var(--rxs);padding:10px 16px;font-size:14px;cursor:pointer;}
+    .cloud-authbox{margin-top:12px;padding:14px;background:var(--s2);border-radius:var(--rsm);text-align:center;}
+    .cloud-authbox-label{font-size:13px;color:var(--t2);margin-bottom:8px;}
+    .cloud-usercode{font-size:26px;font-weight:700;letter-spacing:.14em;color:var(--coral);
+      font-family:"SF Mono",Consolas,monospace;margin-bottom:10px;}
+    .cloud-link{display:inline-block;color:var(--blue);font-size:14px;margin-bottom:8px;text-decoration:none;}
+    .cloud-auth-hint{font-size:12px;color:var(--t3);margin-bottom:10px;}
+
+    /* ---------- External access view ---------- */
+    .etm-card{max-width:560px;margin:0 auto;padding:16px 14px calc(40px + var(--safe-b));}
+    .etm-title{font-size:17px;font-weight:700;letter-spacing:-.02em;margin:2px 0 10px;}
+    .etm-warn{font-size:12.5px;color:var(--t2);line-height:1.55;background:var(--accent-bg);
+      border-radius:var(--rsm);padding:11px 13px;margin-bottom:14px;}
+    .etm-status{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--t2);margin-bottom:12px;}
+    .etm-dot{width:9px;height:9px;border-radius:50%;background:var(--t3);}
+    .etm-dot.connecting{background:#ff9800;}
+    .etm-dot.online{background:var(--green);box-shadow:0 0 5px rgba(40,167,69,.4);}
+    .etm-dot.error{background:var(--red);}
+    .etm-main{width:100%;background:var(--coral);color:#fff;border:none;border-radius:var(--rsm);
+      padding:14px;font-size:16px;font-weight:500;cursor:pointer;margin-bottom:14px;}
+    .etm-main.off{background:var(--coral);}
+    .etm-main:not(.off){background:var(--s2);color:var(--red);border:1px solid rgba(255,59,48,.3);}
+    .etm-result{display:none;}
+    .etm-result.show{display:block;}
+    .etm-copyall{width:100%;background:var(--s2);color:var(--blue);border:1px solid rgba(0,113,227,.3);
+      border-radius:var(--rsm);padding:11px;font-size:14px;cursor:pointer;margin-bottom:8px;}
+    .etm-hint{font-size:12px;color:var(--t3);line-height:1.5;margin-bottom:14px;}
+    .etm-row{margin-bottom:16px;}
+    .etm-row label{display:block;font-size:12px;color:var(--t2);margin-bottom:6px;}
+    .etm-copyrow{display:flex;gap:8px;}
+    .etm-copyrow input{flex:1;min-width:0;background:var(--s2);color:var(--t1);border:1px solid var(--bm);
+      border-radius:var(--rxs);padding:10px;font-size:13px;outline:none;font-family:"SF Mono",Consolas,monospace;}
+    .etm-copybtn,.etm-refresh{flex:none;background:var(--s2);color:var(--t2);border:1px solid var(--bm);
+      border-radius:var(--rxs);padding:10px 14px;font-size:13px;cursor:pointer;}
+    .etm-qr-wrap{display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:12px;}
+    .etm-qr{width:116px;height:116px;background:#fff;padding:5px;border-radius:8px;border:1px solid var(--b);}
+    .etm-qr-cap{font-size:11px;color:var(--t3);}
+    .etm-err{font-size:12.5px;color:var(--red);min-height:18px;text-align:center;margin-top:6px;word-break:break-all;}
+
+    /* ---------- ☰ Menu dropdown ---------- */
+    .scrim{position:fixed;inset:0;z-index:280;background:rgba(0,0,0,.18);opacity:0;
+      pointer-events:none;transition:opacity .18s;}
+    .scrim.on{opacity:1;pointer-events:auto;}
+    .menu{position:fixed;top:calc(54px + var(--safe-t));left:12px;z-index:290;width:232px;
+      background:var(--s1);border-radius:var(--r);
+      box-shadow:0 18px 50px rgba(0,0,0,.22),0 0 0 1px rgba(0,0,0,.05);padding:7px;
+      transform-origin:top left;transform:scale(.92);opacity:0;pointer-events:none;
+      transition:transform .16s cubic-bezier(.32,.72,0,1),opacity .16s;}
+    .menu.on{transform:scale(1);opacity:1;pointer-events:auto;}
+    .mi{display:flex;align-items:center;gap:11px;width:100%;padding:11px 12px;background:none;
+      border:none;border-radius:9px;font-size:15px;color:var(--t1);cursor:pointer;text-align:left;}
+    .mi:active{background:var(--s2);}
+    .mi .mic{width:22px;text-align:center;font-size:17px;color:var(--t2);}
+    .mi.danger{color:var(--red);}.mi.danger .mic{color:var(--red);}
+    .mi:disabled{opacity:.4;}
+    .msep{height:1px;background:var(--b);margin:6px 8px;}
+    .mlang{display:flex;align-items:center;gap:8px;padding:8px 12px;}
+    .mlang>span{font-size:13px;color:var(--t3);flex:1;}
+    .lb{background:var(--s2);border:1px solid var(--b);border-radius:7px;padding:5px 11px;
+      font-size:13px;color:var(--t2);cursor:pointer;}
+    .lb.active{background:var(--coral);color:#fff;border-color:var(--coral);}
+
+    /* ---------- ⊞ Switcher ---------- */
+    .sw{position:fixed;inset:0;z-index:300;background:rgba(235,235,240,.86);backdrop-filter:blur(18px);
+      display:flex;flex-direction:column;transform:translateY(100%);
+      transition:transform .26s cubic-bezier(.32,.72,0,1);}
+    .sw.on{transform:translateY(0);}
+    .sw-head{flex:none;display:flex;align-items:center;padding:calc(16px + var(--safe-t)) 18px 4px;}
+    .sw-head h2{font-size:21px;font-weight:700;letter-spacing:-.02em;flex:1;}
+    .sw-close{width:34px;height:34px;border:none;background:rgba(0,0,0,.06);border-radius:50%;
+      font-size:17px;color:var(--t2);cursor:pointer;}
+    .sw-actions{flex:none;display:flex;gap:10px;padding:10px 16px 6px;}
+    .sw-act{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 6px;
+      border-radius:var(--r);cursor:pointer;border:1px solid transparent;}
+    .sw-act.new{background:linear-gradient(135deg,var(--coral2),var(--coral));color:#fff;}
+    .sw-act.hist{background:var(--s1);color:var(--t1);border-color:var(--b);box-shadow:var(--card-shadow);}
+    .sw-act .ai{font-size:22px;line-height:1;}.sw-act .al{font-size:13px;font-weight:600;}
+    .sw-sec{padding:14px 18px 6px;font-size:11px;font-weight:600;letter-spacing:.07em;
+      text-transform:uppercase;color:var(--t3);}
+    .sw-grid{flex:1;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:12px;
+      padding:2px 16px calc(20px + var(--safe-b));align-content:start;}
+    .tcard{background:var(--s1);border-radius:var(--r);box-shadow:var(--card-shadow);overflow:hidden;
+      cursor:pointer;display:flex;flex-direction:column;min-height:128px;border:2px solid transparent;
+      transition:transform .12s;}
+    .tcard:active{transform:scale(.97);}
+    .tcard.cur{border-color:var(--coral);}
+    .tcard .thumb{flex:1;background:#1e1e1e;padding:9px;font-family:Consolas,monospace;font-size:8px;
+      line-height:1.5;color:#9a9a9a;overflow:hidden;position:relative;white-space:pre;}
+    .tcard .x{position:absolute;top:6px;right:6px;width:20px;height:20px;background:rgba(0,0,0,.55);
+      color:#fff;border:none;border-radius:50%;font-size:13px;line-height:1;cursor:pointer;}
+    .tcard .foot{flex:none;padding:8px 10px;}
+    .tcard .foot .nm{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .tcard .foot .mt{display:flex;align-items:center;gap:5px;margin-top:3px;}
+    .tcard .foot .mt .dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--t3);}
+    .tcard .foot .mt .dot.active,.tcard .foot .mt .dot.online{background:var(--green);}
+    .tcard .foot .mt .dot.closed,.tcard .foot .mt .dot.disconnected{background:var(--t3);}
+    .tcard .foot .mt .dot.reconnecting{background:#ff9800;}
+    .tcard .foot .mt span{font-size:10px;color:var(--t3);}
+    .sw-empty{grid-column:1/3;text-align:center;color:var(--t3);font-size:14px;padding:40px 0;}
+
+    /* history sub-sheet inside switcher */
+    .hsheet{position:absolute;inset:0;z-index:310;background:var(--bg);transform:translateX(100%);
+      transition:transform .24s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column;}
+    .hsheet.on{transform:translateX(0);}
+    .hsheet-head{flex:none;display:flex;align-items:center;gap:10px;padding:calc(16px + var(--safe-t)) 16px 8px;}
+    .hsheet-head button{background:none;border:none;font-size:16px;color:var(--blue);cursor:pointer;}
+    .hsheet-head h2{font-size:18px;font-weight:700;}
+    .hsheet-body{flex:1;overflow-y:auto;padding:6px 14px calc(30px + var(--safe-b));}
+
+    /* ---------- Confirm dialog ---------- */
     @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
     .confirm-overlay{position:fixed;inset:0;z-index:20000;background:rgba(0,0,0,.35);
       display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .12s ease;}
@@ -186,11 +344,56 @@
       border-radius:var(--rsm);padding:12px;font-size:15px;cursor:pointer;}
     .confirm-ok{flex:1;background:var(--red);color:#fff;border:none;border-radius:var(--rsm);
       padding:12px;font-size:15px;font-weight:500;cursor:pointer;}
+
+    /* ---------- Rename dialog ---------- */
+    .rnm-overlay{position:fixed;inset:0;z-index:20000;background:rgba(0,0,0,.35);
+      display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .12s ease;}
+    .rnm-card{background:var(--s1);border-radius:var(--r);width:min(340px,92vw);padding:20px;
+      box-shadow:0 20px 60px rgba(0,0,0,.2);}
+    .rnm-title{font-size:16px;font-weight:600;margin-bottom:14px;}
+    .rnm-input{width:100%;background:var(--s2);color:var(--t1);border:1px solid var(--bm);
+      border-radius:var(--rsm);padding:12px;font-size:15px;outline:none;margin-bottom:16px;}
+    .rnm-input:focus{border-color:var(--blue);}
+    .rnm-actions{display:flex;gap:10px;}
+    .rnm-actions button{flex:1;border-radius:var(--rsm);padding:12px;font-size:15px;cursor:pointer;}
+    #rnm-cancel{background:var(--s2);color:var(--t1);border:1px solid var(--bm);}
+    #rnm-save{background:var(--blue);color:#fff;border:none;font-weight:500;}
+
+    /* ---------- Picker (import/export sections) ---------- */
+    .picker-overlay{position:fixed;inset:0;z-index:20000;background:rgba(0,0,0,.35);
+      display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .12s ease;}
+    .picker-card{background:var(--s1);border-radius:var(--r);width:min(340px,92vw);padding:20px;
+      box-shadow:0 20px 60px rgba(0,0,0,.2);}
+    .picker-title{font-size:15px;font-weight:600;color:var(--t1);margin-bottom:14px;}
+    .picker-list{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
+    .picker-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--rxs);cursor:pointer;}
+    .picker-item input[type="checkbox"]{accent-color:var(--coral);cursor:pointer;width:18px;height:18px;}
+    .picker-item label{font-size:14px;color:var(--t1);cursor:pointer;flex:1;}
+    .picker-sep{height:1px;background:var(--bm);margin:4px 0;}
+    .picker-actions{display:flex;gap:10px;}
+    .picker-cancel{flex:1;background:var(--s2);color:var(--t1);border:1px solid var(--bm);
+      border-radius:var(--rsm);padding:12px;font-size:15px;cursor:pointer;}
+    .picker-ok{flex:1;background:var(--coral);color:#fff;border:none;border-radius:var(--rsm);
+      padding:12px;font-size:15px;font-weight:500;cursor:pointer;}
   </style>
 </head>
 <body>
+
+  <!-- Token Gate -->
   <div id="gate">
     <div class="gate-box">
+      <div class="gate-brand">
+        <svg width="30" height="30" viewBox="0 0 32 32" style="display:block">
+          <defs><linearGradient id="bg-grad-gate" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0%" stop-color="#E78A6A"/><stop offset="100%" stop-color="#C45A3A"/>
+          </linearGradient></defs>
+          <rect x="1" y="1" width="30" height="30" rx="7" fill="url(#bg-grad-gate)"/>
+          <path d="M5 19c3 -2 6 -2 11 -2s8 0 11 2" stroke="#FFF7EE" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".85"/>
+          <circle cx="11" cy="14" r="3.4" fill="#FFF7EE"/><circle cx="21" cy="14" r="3.4" fill="#FFF7EE"/>
+          <circle cx="11" cy="14" r="1.2" fill="#C45A3A"/><circle cx="21" cy="14" r="1.2" fill="#C45A3A"/>
+        </svg>
+        <span class="gate-brand-name">claude<em>·</em>tape</span>
+      </div>
       <div class="gate-title">agent_win_serve</div>
       <div class="gate-sub" data-i18n="gate_sub">Enter server access token</div>
       <input id="token-input" type="password" placeholder="Access token"
@@ -204,98 +407,238 @@
     </div>
   </div>
 
-  <div id="home" class="hidden">
-    <div class="home-wrap">
-      <div class="brand">
-        <svg width="26" height="26" viewBox="0 0 32 32" style="display:block">
-          <defs><linearGradient id="bg-grad2" x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0%" stop-color="#E78A6A"/><stop offset="100%" stop-color="#C45A3A"/>
-          </linearGradient></defs>
-          <rect x="1" y="1" width="30" height="30" rx="7" fill="url(#bg-grad2)"/>
-          <path d="M5 19c3 -2 6 -2 11 -2s8 0 11 2" stroke="#FFF7EE" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".85"/>
-          <circle cx="11" cy="14" r="3.4" fill="#FFF7EE"/><circle cx="21" cy="14" r="3.4" fill="#FFF7EE"/>
-          <circle cx="11" cy="14" r="1.2" fill="#C45A3A"/><circle cx="21" cy="14" r="1.2" fill="#C45A3A"/>
-        </svg>
-        <span class="brand-name">claude<em>·</em>tape</span>
-      </div>
-      <div class="sec-label" data-i18n="sec_new_session">New Session</div>
-      <div class="home-card">
-        <div class="new-col">
-          <select id="model"></select>
-          <select id="cwd"></select>
-          <button id="start" data-i18n="btn_start">Start</button>
-          <button id="config" data-i18n="btn_config">Config</button>
-        </div>
-      </div>
-      <div class="sec-label" data-i18n="sec_history">History</div>
-      <div id="history"></div>
-    </div>
-  </div>
-
-  <div id="termview" class="hidden">
+  <!-- App shell -->
+  <div id="app" class="hidden">
     <div id="bar">
-      <button id="back" data-i18n="btn_back">← Back</button>
-      <span class="brand-name">claude<em>·</em>tape</span>
-      <span id="status"></span>
+      <button id="btn-menu" class="icon-btn" aria-label="Menu">☰</button>
+      <button id="btn-grid" class="icon-btn grid-btn" aria-label="Sessions">⊞<span class="badge hidden" id="tab-badge">0</span></button>
+      <span class="spacer"></span>
+      <span class="ctx"><b id="ctx-name">claude·tape</b><span id="ctx-sub"></span></span>
     </div>
-    <div id="term"></div>
-    <div id="keys">
-      <button class="key" data-seq="esc">Esc</button>
-      <button class="key" data-seq="tab">Tab</button>
-      <button class="key" id="key-ctrl">Ctrl</button>
-      <button class="key" data-seq="up">↑</button>
-      <button class="key" data-seq="down">↓</button>
-      <button class="key" data-seq="left">←</button>
-      <button class="key" data-seq="right">→</button>
-      <button class="key" data-seq="enter">Enter</button>
-      <button class="key" data-seq="slash">/</button>
-    </div>
-  </div>
 
-  <div id="configview" class="hidden">
-    <div id="cfgbar">
-      <button id="cfg-back" data-i18n="btn_cfg_back">← Back</button>
-      <span class="cfg-title" data-i18n="cfg_title">Config</span>
-      <span id="cfg-status"></span>
-    </div>
-    <div id="cfg-body">
-      <div class="cfg-card">
-        <label class="cfg-field">claude_bin
-          <input id="cfg-claude-bin" type="text" />
-        </label>
-        <label class="cfg-field">access_token
-          <input id="cfg-token" type="text" />
-        </label>
-        <label class="cfg-field">
-          <span data-i18n="cfg_dirs_label">project_dirs (one per line)</span>
-          <textarea id="cfg-dirs" rows="4"></textarea>
-        </label>
-      </div>
-      <div class="cfg-card">
-        <div class="cfg-h" data-i18n="cfg_models_label">Models</div>
-        <div id="cfg-models"></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button id="cfg-add-model" class="cfg-add" data-i18n="cfg_add_model">+ Add model</button>
-          <button id="cfg-import-model" class="cfg-add" data-i18n="cfg_import_model">↑ Import</button>
-          <button id="cfg-export-model" class="cfg-add" data-i18n="cfg_export_model">↓ Export</button>
+    <div id="bodyc">
+      <!-- HOME -->
+      <div class="view on" id="v-home">
+        <div class="home-wrap">
+          <div class="sec-label" data-i18n="sec_new_session">New Session</div>
+          <div class="home-card">
+            <div class="new-col">
+              <select id="model"></select>
+              <select id="cwd"></select>
+              <button id="start" data-i18n="btn_start">Start</button>
+            </div>
+          </div>
+          <div class="sec-label sec-row">
+            <span data-i18n="sec_history">History</span>
+            <button id="sel-toggle" class="sel-toggle" data-i18n="sel_toggle">Select</button>
+          </div>
+          <div id="history"></div>
         </div>
-        <input type="file" id="cfg-import-file" accept=".json" style="display:none">
       </div>
-      <div class="cfg-actions">
-        <button id="cfg-save" data-i18n="cfg_save">Save</button>
-        <button id="cfg-apply" data-i18n="cfg_apply">Apply</button>
+
+      <!-- TERMINAL -->
+      <div class="view" id="v-term">
+        <div id="term-stack">
+          <div class="term-empty" id="term-empty" data-i18n="term_empty_hint">No open session. Tap ⊞ to start or resume one.</div>
+        </div>
+        <div id="keys">
+          <div id="keys-extra" class="keys-line">
+            <button class="key" data-seq="slash">/</button>
+            <button class="key" data-seq="comma">,</button>
+            <button class="key" data-seq="space">␣</button>
+            <button class="key" id="key-ctrl">Ctrl</button>
+            <button class="key" data-seq="left">←</button>
+            <button class="key" data-seq="right">→</button>
+            <button class="key cmd" data-txt="/clear">/clear</button>
+            <button class="key cmd" data-txt="/compact">/compact</button>
+            <button class="key cmd" data-txt="/model">/model</button>
+            <button class="key cmd" data-txt="/resume">/resume</button>
+          </div>
+          <div id="keys-main" class="keys-line">
+            <button class="key key-kb" id="key-kb" aria-label="Keyboard">⌨</button>
+            <button class="key" data-seq="esc">Esc</button>
+            <button class="key" data-seq="up">↑</button>
+            <button class="key" data-seq="down">↓</button>
+            <button class="key" data-seq="enter">Enter</button>
+            <button class="key" data-seq="tab">Tab</button>
+            <button class="key key-expand" id="key-expand" aria-label="More keys">⌄</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- CONFIG -->
+      <div class="view" id="v-cfg">
+        <div id="cfg-body">
+          <div class="cfg-head"><span class="cfg-title" data-i18n="cfg_title">Config</span><span id="cfg-status"></span></div>
+          <div class="cfg-card">
+            <label class="cfg-field">claude_bin
+              <input id="cfg-claude-bin" type="text" />
+            </label>
+            <label class="cfg-field">access_token
+              <span class="cfg-token-row">
+                <input id="cfg-token" type="text" />
+                <button id="cfg-token-reset" type="button" class="cfg-add" data-i18n="cfg_token_reset">Reset &amp; kick all</button>
+              </span>
+              <span id="cfg-token-status" class="cfg-token-status"></span>
+            </label>
+            <label class="cfg-field">
+              <span data-i18n="cfg_dirs_label">project_dirs (one per line)</span>
+              <textarea id="cfg-dirs" rows="4"></textarea>
+            </label>
+          </div>
+          <div class="cfg-card">
+            <div class="cfg-h" data-i18n="cfg_models_label">Models</div>
+            <div id="cfg-models"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button id="cfg-add-model" class="cfg-add" data-i18n="cfg_add_model">+ Add model</button>
+              <button id="cfg-import-model" class="cfg-add" data-i18n="cfg_import_model">↑ Import</button>
+              <button id="cfg-export-model" class="cfg-add" data-i18n="cfg_export_model">↓ Export</button>
+            </div>
+            <input type="file" id="cfg-import-file" accept=".json" style="display:none">
+          </div>
+          <div class="cfg-card" id="cloud-card">
+            <div class="cfg-h" data-i18n="cloud_title">Cloud</div>
+            <div class="cloud-status">
+              <span id="cloud-dot" class="cloud-dot"></span>
+              <span id="cloud-status-text" data-i18n="cloud_unbound">Not connected</span>
+            </div>
+            <label class="cfg-field">
+              <span data-i18n="cloud_base_url">Cloud server</span>
+              <input id="cloud-base-url" type="text" />
+            </label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+              <button id="cloud-connect" class="cloud-btn-primary" data-i18n="cloud_connect">Connect</button>
+              <button id="cloud-logout" class="cloud-btn-ghost" style="display:none" data-i18n="cloud_logout">Disconnect</button>
+            </div>
+            <div id="cloud-authbox" class="cloud-authbox hidden">
+              <div class="cloud-authbox-label" data-i18n="cloud_enter_code">Confirm this code in your browser:</div>
+              <div id="cloud-usercode" class="cloud-usercode">----</div>
+              <a id="cloud-open-link" class="cloud-link" target="_blank" rel="noopener" data-i18n="cloud_open_browser">Open authorization page</a>
+              <div id="cloud-auth-hint" class="cloud-auth-hint" data-i18n="cloud_waiting">Waiting for confirmation…</div>
+              <button id="cloud-auth-cancel" class="cloud-btn-ghost" data-i18n="cloud_cancel">Cancel</button>
+            </div>
+          </div>
+          <div class="cfg-card" id="frp-card">
+            <div class="cfg-h" data-i18n="cfg_frp_title">External Access (frp server)</div>
+            <label class="cfg-field">server_addr<input id="cfg-frp-server-addr" type="text" /></label>
+            <label class="cfg-field">server_port<input id="cfg-frp-server-port" type="text" /></label>
+            <label class="cfg-field">token<input id="cfg-frp-token" type="text" /></label>
+            <label class="cfg-field">subdomain_host<input id="cfg-frp-subdomain-host" type="text" /></label>
+            <button id="cfg-frp-save" class="cfg-add" data-i18n="cfg_frp_save">Save server settings</button>
+            <span id="cfg-frp-status" style="margin-left:8px;font-size:12px;color:var(--coral)"></span>
+          </div>
+          <div class="cfg-actions" style="margin-bottom:12px">
+            <button id="cfg-import-all" class="cfg-add" data-i18n="cfg_import_all">↑ Import All</button>
+            <button id="cfg-export-all" class="cfg-add" data-i18n="cfg_export_all">↓ Export All</button>
+            <input type="file" id="cfg-import-all-file" accept=".json" style="display:none">
+          </div>
+          <div class="cfg-actions">
+            <button id="cfg-save" data-i18n="cfg_save">Save</button>
+            <button id="cfg-apply" data-i18n="cfg_apply">Apply</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- EXTERNAL ACCESS -->
+      <div class="view" id="v-ext">
+        <div class="etm-card">
+          <div class="etm-title" data-i18n="etm_title">External Access</div>
+          <div class="etm-warn" data-i18n="etm_warn">Anyone with the share link can access your local terminal.</div>
+          <div class="etm-status">
+            <span id="etm-dot" class="etm-dot"></span>
+            <span id="etm-state" data-i18n="etm_off">Off</span>
+          </div>
+          <button id="etm-toggle" class="etm-main off" data-i18n="etm_enable">Enable external access</button>
+          <div id="etm-result" class="etm-result">
+            <button id="etm-copyall" class="etm-copyall" data-i18n="etm_copy_all">Copy all (URLs + token)</button>
+            <div class="etm-hint" data-i18n="etm_hint">Open the URL, then enter the access token at the login screen.</div>
+            <div class="etm-row">
+              <label data-i18n="etm_url_pc">Desktop URL</label>
+              <div class="etm-copyrow">
+                <input id="etm-url" type="text" readonly />
+                <button class="etm-copybtn" data-copy="etm-url" data-i18n="etm_copy">Copy</button>
+              </div>
+              <div class="etm-qr-wrap"><div id="etm-url-qr" class="etm-qr"></div>
+                <span class="etm-qr-cap" data-i18n="etm_qr_pc">Scan to open (desktop)</span></div>
+            </div>
+            <div class="etm-row">
+              <label data-i18n="etm_url_mobile">Mobile URL (/m)</label>
+              <div class="etm-copyrow">
+                <input id="etm-url-m" type="text" readonly />
+                <button class="etm-copybtn" data-copy="etm-url-m" data-i18n="etm_copy">Copy</button>
+              </div>
+              <div class="etm-qr-wrap"><div id="etm-url-m-qr" class="etm-qr"></div>
+                <span class="etm-qr-cap" data-i18n="etm_qr_mobile">Scan to open (mobile)</span></div>
+            </div>
+            <div class="etm-row">
+              <label data-i18n="etm_token">Access token</label>
+              <div class="etm-copyrow">
+                <input id="etm-token" type="text" readonly />
+                <button class="etm-copybtn" data-copy="etm-token" data-i18n="etm_copy">Copy</button>
+                <button id="etm-refresh" class="etm-refresh" data-i18n="etm_refresh">↻</button>
+              </div>
+              <div class="etm-qr-wrap"><div id="etm-token-qr" class="etm-qr"></div>
+                <span class="etm-qr-cap" data-i18n="etm_qr_token">Scan for token</span></div>
+            </div>
+          </div>
+          <div id="etm-err" class="etm-err"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- batch bar (select mode) -->
+    <div id="batch-bar" class="hidden">
+      <div class="batch-info">
+        <span class="lnk" id="batch-select-all" data-i18n="sel_all">Select all</span>
+        <span id="batch-count"></span>
+        <span class="st" id="batch-status"></span>
+      </div>
+      <div class="batch-acts">
+        <button id="batch-activate" data-i18n="sess_activate">Activate</button>
+        <button id="batch-cloud-save" data-i18n="cloud_save_title">Save to cloud</button>
+        <select id="batch-model"></select>
+        <button id="batch-apply-model" data-i18n="sel_apply_model">Apply</button>
+        <button id="batch-close" data-i18n="sess_close">Close</button>
+        <button id="batch-delete" class="danger" data-i18n="sess_delete">Delete</button>
+        <button id="batch-cancel" class="cancel" data-i18n="sel_cancel">Cancel</button>
       </div>
     </div>
   </div>
 
-  <div id="lang-sw">
-    <button class="lb active" data-lang="en">EN</button>
-    <span class="lb-sep">|</span>
-    <button class="lb" data-lang="zh">中</button>
+  <!-- ☰ Menu -->
+  <div class="scrim" id="scrim"></div>
+  <div class="menu" id="menu">
+    <button class="mi" id="m-home"><span class="mic">⌂</span><span data-i18n="tab_home">Home</span></button>
+    <button class="mi" id="m-config"><span class="mic">⚙</span><span data-i18n="cfg_title">Config</span></button>
+    <button class="mi" id="m-ext"><span class="mic">🌐</span><span data-i18n="etm_title">External Access</span></button>
+    <button class="mi" id="m-cloud-save"><span class="mic">☁︎</span><span data-i18n="cloud_save_title">Save to cloud</span></button>
+    <div class="msep"></div>
+    <div class="mlang"><span data-i18n="menu_lang">Language</span>
+      <button class="lb" data-lang="zh">中</button>
+      <button class="lb" data-lang="en">EN</button></div>
+    <div class="msep"></div>
+    <button class="mi danger" id="m-logout"><span class="mic">⎋</span><span data-i18n="btn_logout">Logout</span></button>
+  </div>
+
+  <!-- ⊞ Switcher -->
+  <div class="sw" id="sw">
+    <div class="sw-head"><h2 data-i18n="sw_sessions">Sessions</h2><button class="sw-close" id="sw-close">×</button></div>
+    <div class="sw-actions">
+      <div class="sw-act new" id="sw-new"><span class="ai">＋</span><span class="al" data-i18n="sw_new">New</span></div>
+      <div class="sw-act hist" id="sw-hist"><span class="ai">🕘</span><span class="al" data-i18n="sw_hist">From history</span></div>
+    </div>
+    <div class="sw-sec" data-i18n="sw_open">Open</div>
+    <div class="sw-grid" id="sw-grid"></div>
+    <div class="hsheet" id="hsheet">
+      <div class="hsheet-head"><button id="hsheet-back" data-i18n="sw_back">‹ Back</button>
+        <h2 data-i18n="sw_resume">Resume from history</h2></div>
+      <div class="hsheet-body" id="hist-body"></div>
+    </div>
   </div>
 
   <script src="/static/vendor/xterm.js"></script>
   <script src="/static/vendor/addon-fit.js"></script>
+  <script src="/static/vendor/qrcode.min.js"></script>
   <script src="/static/mobile.js"></script>
 </body>
 </html>

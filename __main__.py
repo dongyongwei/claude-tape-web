@@ -60,6 +60,15 @@ def resolve_access_token(cfg: ServeConfig) -> str:
 def main() -> None:
     cfg = ServeConfig.load()
     cfg.access_token = resolve_access_token(cfg)
+    # Keep the persisted token file in lockstep with the live token. config.json's
+    # access_token wins in resolve_access_token, so the token file can otherwise drift
+    # stale and hand out a token the server rejects (WS close 4003). Best-effort: never
+    # let a write failure block startup.
+    if cfg.access_token and load_saved_token() != cfg.access_token:
+        try:
+            save_token(cfg.access_token)
+        except OSError:
+            pass
     app = create_app(cfg)
     _cfg_path = resolve_config_path()
     cfg_hint = str(_cfg_path) if _cfg_path.exists() else f"{_cfg_path} (not created, using defaults)"
@@ -80,8 +89,13 @@ def main() -> None:
         host=cfg.host,
         port=cfg.port,
         log_level="info",
-        ws_ping_interval=30,
-        ws_ping_timeout=10,
+        # Disable uvicorn's built-in WS PING/PONG keepalive. Through the frp HTTP proxy,
+        # WS *control* frames (PING/PONG) don't reliably round-trip, so uvicorn never sees
+        # a PONG and kills every tunnelled session at ws_ping_interval+timeout (~40s).
+        # Keepalive is instead done at the application layer with data frames (the term WS
+        # answers the client's {"type":"ping"} with {"type":"pong"}), which frp forwards fine.
+        ws_ping_interval=None,
+        ws_ping_timeout=None,
     )
 
 

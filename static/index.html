@@ -6,775 +6,7 @@
   <title>claude·tape</title>
   <link rel="icon" href="/static/favicon.ico" type="image/x-icon" />
   <link rel="stylesheet" href="/static/vendor/xterm.css" />
-  <style>
-    /* ── Design Tokens — claude·tape Brand ────────────────────── */
-    :root {
-      --bg:       #f5f5f7;
-      --s1:       #ffffff;
-      --s2:       #f2f2f5;
-      --s3:       #e8e8ed;
-      --b:        rgba(0,0,0,.07);
-      --bm:       rgba(0,0,0,.12);
-      --t1:       #1d1d1f;
-      --t2:       #6e6e73;
-      --t3:       #aeaeb2;
-      --accent:   #E78A6A;
-      --accent-dk:#C45A3A;
-      --accent-bg:rgba(231,138,106,.1);
-      --accent-g: linear-gradient(145deg, #E78A6A, #C45A3A);
-      --green:    #28a745;
-      --red:      #ff3b30;
-      --r:        14px;
-      --rsm:      10px;
-      --rxs:      8px;
-      --card-shadow: 0 1px 3px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.04);
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    html, body {
-      height: 100%;
-      background: var(--bg);
-      color: var(--t1);
-      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", sans-serif;
-      font-size: 13px;
-      line-height: 1.5;
-      -webkit-font-smoothing: antialiased;
-    }
-    /* Subtle grain texture on background */
-    body::after {
-      content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
-      opacity: .025;
-      background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-    }
-    .hidden { display: none !important; }
-
-    ::-webkit-scrollbar { width: 5px; height: 5px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(0,0,0,.15); border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,.25); }
-
-    /* ── Token Gate ─────────────────────────────────────────── */
-    #gate {
-      position: fixed; inset: 0; z-index: 10;
-      background: var(--bg);
-      display: flex; align-items: center; justify-content: center;
-    }
-    .gate-box {
-      width: 360px; max-width: 90vw;
-      background: var(--s1);
-      border-radius: var(--r);
-      padding: 32px 28px;
-      box-shadow: var(--card-shadow);
-      animation: fadeUp .22s cubic-bezier(.16,1,.3,1);
-    }
-    .gate-brand {
-      display: flex; align-items: center; justify-content: center;
-      gap: 10px; margin-bottom: 20px;
-    }
-    .gate-brand svg { flex-shrink: 0; }
-    .gate-brand-name {
-      font-size: 20px; font-weight: 700; letter-spacing: -.02em;
-      color: var(--t1);
-    }
-    .gate-brand-name em { font-style: normal; color: var(--accent-dk); }
-    .gate-title {
-      font-size: 14px; font-weight: 500;
-      color: var(--t2); text-align: center; margin-bottom: 4px;
-    }
-    .gate-sub {
-      font-size: 12px; color: var(--t3); text-align: center; margin-bottom: 20px;
-    }
-    .gate-box input[type="password"] {
-      width: 100%; background: var(--s2); color: var(--t1);
-      border: 1px solid var(--bm); border-radius: var(--rsm);
-      padding: 10px 14px; font-size: 13px; outline: none; margin-bottom: 10px;
-      transition: border-color .15s, box-shadow .15s;
-    }
-    .gate-box input[type="password"]:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-bg);
-    }
-    .gate-remember {
-      display: flex; align-items: center; gap: 7px;
-      font-size: 12px; color: var(--t2); margin-bottom: 14px; cursor: pointer;
-      user-select: none;
-    }
-    .gate-remember input[type="checkbox"] {
-      width: auto; margin: 0; accent-color: var(--accent); cursor: pointer;
-    }
-    #enter {
-      width: 100%; background: var(--accent-g); color: #fff; border: none;
-      border-radius: var(--rsm); padding: 10px; font-size: 13px;
-      font-weight: 500; cursor: pointer;
-      transition: filter .15s, transform .1s;
-    }
-    #enter:hover  { filter: brightness(1.08); }
-    #enter:active { transform: scale(.98); filter: brightness(.95); }
-    #gate-err { color: var(--red); font-size: 12px; min-height: 18px; margin-top: 10px; text-align: center; }
-
-    /* ── Home ───────────────────────────────────────────────── */
-    #home {
-      position: fixed; inset: 0; z-index: 5;
-      overflow-y: auto; background: var(--bg);
-    }
-    .home-wrap { max-width: 760px; margin: 0 auto; padding: 28px 20px 48px; }
-
-    .sec-label {
-      font-size: 10.5px; font-weight: 600; letter-spacing: .07em;
-      text-transform: uppercase; color: var(--t3);
-      padding: 0 4px; margin-bottom: 8px; margin-top: 26px;
-    }
-    .sec-label:first-child { margin-top: 0; }
-
-    .home-card {
-      background: var(--s1); border-radius: var(--r);
-      box-shadow: var(--card-shadow); padding: 14px 16px;
-      border: 1px solid var(--b);
-    }
-    .new-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-
-    .new-row select {
-      background: var(--s2); color: var(--t1);
-      border: 1px solid var(--bm); border-radius: var(--rxs);
-      padding: 7px 10px; font-size: 12px; outline: none; cursor: pointer;
-      transition: border-color .15s; appearance: auto;
-    }
-    .new-row select:focus { border-color: var(--accent); }
-
-    #start {
-      background: var(--accent-g); color: #fff; border: none;
-      border-radius: var(--rxs); padding: 7px 18px; font-size: 12px;
-      font-weight: 500; cursor: pointer; transition: filter .15s;
-    }
-    #start:hover { filter: brightness(1.08); }
-
-    #config {
-      background: var(--s2); color: var(--t2);
-      border: 1px solid var(--bm); border-radius: var(--rxs);
-      padding: 7px 14px; font-size: 12px; cursor: pointer;
-      transition: background .13s, color .13s, border-color .13s;
-    }
-    #config:hover { background: var(--s3); color: var(--t1); border-color: var(--accent); }
-
-    /* History groups */
-    .grp { margin-bottom: 8px; }
-    .grp-head {
-      display: flex; align-items: center; gap: 8px;
-      padding: 7px 10px; border-radius: var(--rsm);
-      cursor: pointer; user-select: none; transition: background .12s;
-    }
-    .grp-head:hover { background: rgba(0,0,0,.04); }
-    .grp-head .caret { color: var(--t3); font-size: 10px; width: 10px; text-align: center; }
-    .grp-head .path  { color: var(--t2); font-size: 12px; word-break: break-all; }
-    .grp-head .count {
-      margin-left: auto; font-size: 10.5px; color: var(--t3);
-      background: var(--s3); border-radius: 20px; padding: 1px 8px;
-    }
-
-    .grp-body {
-      background: var(--s1); border-radius: var(--rsm);
-      box-shadow: var(--card-shadow);
-      border: 1px solid var(--b);
-    }
-
-    /* Session row */
-    .sess {
-      display: flex; align-items: center; gap: 0;
-      padding: 8px 12px; font-size: 12px;
-      border-bottom: 1px solid var(--b);
-      transition: background .1s; position: relative;
-    }
-    .sess:last-child { border-bottom: none; }
-    .sess:hover { background: rgba(0,0,0,.025); }
-    .grp-body .sess-hdr + .sess { border-radius: var(--rsm) var(--rsm) 0 0; }
-    .grp-body .sess:last-child  { border-radius: 0 0 var(--rsm) var(--rsm); }
-    .grp-body .sess:last-child:is(.sess-hdr + .sess) { border-radius: var(--rsm); }
-
-    .sess .dot {
-      width: 7px; height: 7px;
-      flex: none; border-radius: 50%;
-    }
-    .sess .dot.active { background: var(--green); box-shadow: 0 0 4px rgba(40,167,69,.4); }
-    .sess .dot.closed { background: var(--t3); }
-
-    .sess .when {
-      width: 88px; flex: none; padding-right: 8px;
-      color: var(--t2); font-size: 11px; font-variant-numeric: tabular-nums;
-    }
-    .m-select {
-      width: 150px; flex: none; margin-right: 4px;
-      background: transparent; color: var(--accent-dk);
-      border: 1px solid transparent; border-radius: var(--rxs);
-      padding: 2px 4px; font-size: 11px; outline: none;
-      cursor: pointer; appearance: auto;
-      transition: background .12s, border-color .12s;
-    }
-    .m-select:hover { background: var(--accent-bg); border-color: rgba(231,138,106,.25); }
-    .m-select:focus { background: var(--accent-bg); border-color: var(--accent); }
-    .tag-input-wrap {
-      flex: 1; min-width: 0; padding-right: 4px;
-      display: flex; align-items: flex-start; gap: 4px;
-    }
-    .tag-input {
-      flex: 1; min-width: 0;
-      background: transparent; color: var(--t2);
-      border: 1px solid transparent; border-radius: var(--rxs);
-      padding: 2px 6px; font-size: 11px; outline: none;
-      resize: none; overflow: hidden;
-      line-height: 1.5; font-family: inherit;
-      display: block;
-      transition: border-color .15s, background .15s, color .15s;
-    }
-    .tag-input::placeholder { color: var(--t3); }
-    .tag-input:hover { background: var(--s2); border-color: var(--bm); }
-    .tag-input:focus {
-      background: var(--s1); border-color: var(--accent); color: var(--t1);
-      box-shadow: 0 0 0 2px var(--accent-bg);
-    }
-    .tag-btns { display: none; gap: 4px; flex: none; padding-top: 1px; }
-    .tag-btns.visible { display: flex; }
-    .sess .spacer { flex-shrink: 0; margin-left: auto; }
-
-    /* Session column header */
-    .sess-hdr {
-      display: flex; align-items: center; gap: 0;
-      padding: 6px 12px 4px;
-      font-size: 10px; font-weight: 600; letter-spacing: .07em;
-      text-transform: uppercase; color: var(--t3);
-    }
-    .sess-hdr .hdr-dot  { width: 7px; flex: none; }
-    .sess-hdr .hdr-when { width: 88px; flex: none; padding-right: 8px; }
-    .sess-hdr .hdr-model { width: 150px; flex: none; margin-right: 4px; }
-    .sess-hdr .hdr-tag  { flex: 1; min-width: 0; }
-
-    /* Session buttons */
-    .sess button {
-      flex: none;
-      background: var(--s2); color: var(--t2);
-      border: 1px solid var(--bm); border-radius: var(--rxs);
-      padding: 3px 9px; font-size: 11px; cursor: pointer; white-space: nowrap;
-      transition: background .12s, border-color .12s, color .12s;
-    }
-    .sess button:hover { background: var(--s3); color: var(--t1); }
-
-    .sess button.act {
-      background: var(--accent-g); color: #fff;
-      border-color: transparent; font-weight: 500;
-    }
-    .sess button.act:hover { filter: brightness(1.08); }
-
-    /* more dropdown */
-    .more-wrap { position: relative; flex: none; margin-left: 6px; }
-    .more-btn {
-      background: transparent; border: none; cursor: pointer;
-      color: var(--t3); font-size: 16px; padding: 0 4px;
-      border-radius: var(--rxs);
-      transition: background .1s, color .1s;
-    }
-    .more-btn:hover { background: rgba(0,0,0,.06); color: var(--t2); }
-    .more-drop {
-      position: absolute; top: 100%; right: 0; z-index: 9999;
-      background: var(--s1);
-      border: 1px solid var(--bm);
-      border-radius: var(--rsm);
-      box-shadow: 0 6px 24px rgba(0,0,0,.12), 0 1px 4px rgba(0,0,0,.07);
-      min-width: 150px; padding: 4px;
-      margin-top: 4px;
-    }
-    .mi {
-      display: block; width: 100%; text-align: left;
-      background: transparent; color: var(--t1);
-      border: none; border-radius: var(--rxs);
-      padding: 6px 10px; font-size: 12px; cursor: pointer;
-      transition: background .1s;
-    }
-    .mi:hover { background: var(--s2); }
-    .mi.del { color: var(--red); }
-    .mi.del:hover { background: rgba(255,59,48,.08); }
-    .more-sep { height: 1px; background: var(--b); margin: 3px 0; }
-
-    /* ── Config View ────────────────────────────────────────── */
-    #configview {
-      position: fixed; inset: 0; z-index: 5;
-      overflow-y: auto; background: var(--bg);
-    }
-    #cfgbar {
-      display: flex; align-items: center; gap: 10px;
-      padding: 8px 16px;
-      background: var(--s1); border-bottom: 1px solid var(--b);
-      position: sticky; top: 0; z-index: 2;
-    }
-    #cfgbar button {
-      background: var(--s2); color: var(--t2);
-      border: 1px solid var(--bm); border-radius: var(--rxs);
-      padding: 5px 12px; font-size: 12px; cursor: pointer;
-      transition: background .12s, color .12s;
-    }
-    #cfgbar button:hover { background: var(--s3); color: var(--t1); }
-    .cfg-title {
-      font-size: 13px; font-weight: 600; color: var(--t1);
-    }
-    #cfg-status { margin-left: auto; font-size: 12px; color: var(--accent-dk); }
-
-    #cfg-body {
-      max-width: 680px; margin: 0 auto; padding: 24px 20px 48px;
-    }
-    .cfg-card {
-      background: var(--s1); border-radius: var(--r);
-      box-shadow: var(--card-shadow); padding: 20px;
-      margin-bottom: 16px;
-      border: 1px solid var(--b);
-    }
-    .cfg-h {
-      font-size: 13px; font-weight: 600; color: var(--t1);
-      margin-bottom: 10px;
-    }
-    .cfg-field {
-      display: block; font-size: 12px; color: var(--t2);
-      margin-bottom: 12px;
-    }
-    .cfg-field input,
-    .cfg-field textarea {
-      display: block; width: 100%; margin-top: 5px;
-      background: var(--s2); color: var(--t1);
-      border: 1px solid var(--bm); border-radius: var(--rsm);
-      padding: 8px 10px; font-size: 12px; outline: none;
-      font-family: "SF Mono", "JetBrains Mono", monospace;
-      transition: border-color .15s, box-shadow .15s;
-    }
-    .cfg-field input:focus,
-    .cfg-field textarea:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-bg);
-    }
-    .cfg-field textarea { resize: vertical; }
-
-    /* Model table */
-    .cfg-model-table {
-      width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed;
-    }
-    .cfg-model-table thead th {
-      text-align: left; font-size: 10px; font-weight: 600; letter-spacing: .07em;
-      text-transform: uppercase; color: var(--t3);
-      padding: 2px 4px 6px; border-bottom: 1px solid var(--b);
-    }
-    .cfg-model-table thead th:first-child { width: 26px; text-align: center; }
-    .cfg-model-table thead th:last-child  { width: 30px; }
-    .cfg-model-table td { padding: 2px 2px; vertical-align: middle; }
-    .cfg-model-table input {
-      width: 100%; background: var(--s2); color: var(--t1);
-      border: 1px solid transparent; border-radius: var(--rxs);
-      padding: 3px 6px; font-size: 12px; outline: none;
-      transition: border-color .12s;
-    }
-    .cfg-model-table input:focus { border-color: var(--accent); }
-    .cfg-model-table input:disabled { opacity: .55; cursor: default; }
-    .cfg-builtin-tag {
-      font-size: 10px; color: var(--t3); border: 1px solid var(--b);
-      border-radius: 3px; padding: 1px 5px;
-    }
-    .m-del {
-      background: transparent; border: none; cursor: pointer;
-      color: var(--t3); font-size: 13px; padding: 2px 4px;
-      border-radius: 3px; transition: color .1s, background .1s; white-space: nowrap;
-    }
-    .m-del:hover { color: var(--red); background: rgba(255,59,48,.08); }
-
-    .cfg-actions {
-      display: flex; gap: 8px; margin-top: 8px;
-    }
-    .cfg-actions button {
-      flex: 1; border-radius: var(--rsm); padding: 9px; font-size: 13px;
-      font-weight: 500; cursor: pointer; border: none;
-      transition: filter .15s, background .12s;
-    }
-    #cfg-save {
-      background: var(--accent-g); color: #fff;
-    }
-    #cfg-save:hover { filter: brightness(1.08); }
-    #cfg-apply {
-      background: var(--s2); color: var(--t1); border: 1px solid var(--bm);
-    }
-    #cfg-apply:hover { background: var(--s3); }
-
-    .cfg-add {
-      background: var(--s2); color: var(--t2);
-      border: 1px solid var(--bm); border-radius: var(--rxs);
-      padding: 5px 12px; font-size: 12px; cursor: pointer;
-      transition: background .12s, color .12s, border-color .12s;
-    }
-    .cfg-add:hover { background: var(--s3); color: var(--t1); border-color: var(--accent); }
-
-    /* ── Terminal View ──────────────────────────────────────── */
-    #termview {
-      position: fixed; inset: 0; z-index: 5;
-      display: flex; flex-direction: column;
-    }
-      #term-container {
-        flex: 1;
-        min-height: 0;
-        overflow: hidden;
-      }
-        #term-container {
-          position: relative;
-        }
-        .term-panel {
-          position: absolute;
-          inset: 0;
-        }
-
-
-    #bar {
-      display: flex; align-items: center; gap: 8px;
-      padding: 6px 12px;
-      background: var(--s1); border-bottom: 1px solid var(--b);
-      flex: none;
-    }
-    #status {
-      margin-left: auto; font-size: 11px; color: var(--accent-dk);
-      font-family: "SF Mono", "JetBrains Mono", monospace;
-    }
-    #back {
-      background: var(--s2); color: var(--t2);
-      border: 1px solid var(--bm); border-radius: var(--rxs);
-      padding: 4px 10px; font-size: 12px; cursor: pointer;
-      transition: background .12s, color .12s;
-    }
-    #back:hover { background: var(--s3); color: var(--t1); }
-
-    /* Tab strip */
-    #tab-strip {
-      display: flex; align-items: center; gap: 2px;
-      overflow-x: auto; flex: 1; min-width: 0;
-      padding: 0 4px;
-    }
-    .tab-btn {
-      display: flex; align-items: center; gap: 4px;
-      padding: 4px 8px; border-radius: var(--rxs);
-      font-size: 12px; cursor: pointer; white-space: nowrap;
-      background: transparent; border: 1px solid transparent;
-      color: var(--t2); transition: background .12s, border-color .12s;
-      max-width: 180px; min-width: 60px; flex: none;
-    }
-    .tab-btn:hover { background: rgba(0,0,0,.06); }
-    .tab-btn.active { background: var(--accent-bg); color: var(--accent-dk); border-color: rgba(231,138,106,.25); }
-
-    .tab-label {
-      flex: 1; overflow: hidden; text-overflow: ellipsis;
-      min-width: 0; white-space: nowrap;
-    }
-    .tab-close {
-      flex: none; color: var(--t2); font-size: 16px; line-height: 1;
-      padding: 2px 5px; border: 1px solid transparent; background: none; cursor: pointer;
-      border-radius: var(--rxs); transition: background .12s, border-color .12s, color .12s;
-    }
-    .tab-close:hover { background: rgba(255,59,48,.08); border-color: rgba(255,59,48,.2); color: var(--red); }
-    .tab-more-btn {
-      flex: none; color: var(--t2); font-size: 13px; line-height: 1;
-      padding: 3px 6px; border: 1px solid var(--b); background: var(--s2); cursor: pointer;
-      border-radius: var(--rxs); transition: background .12s, border-color .12s, color .12s, box-shadow .12s;
-    }
-    .tab-more-btn:hover { background: var(--s3); border-color: var(--bm); color: var(--t1); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
-    .tab-more-btn:active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent-dk); }
-
-    /* Tab more dropdown */
-    #tab-more-drop {
-      position: absolute; z-index: 10000;
-      background: var(--s1);
-      border: 1px solid var(--bm);
-      border-radius: var(--rsm);
-      box-shadow: 0 6px 24px rgba(0,0,0,.12), 0 1px 4px rgba(0,0,0,.07);
-      min-width: 170px; padding: 4px;
-    }
-    .tmi {
-      display: block; width: 100%; text-align: left;
-      background: transparent; color: var(--t1);
-      border: none; border-radius: var(--rxs);
-      padding: 6px 10px; font-size: 12px; cursor: pointer;
-      transition: background .1s;
-    }
-    .tmi:hover { background: var(--s2); }
-    .tab-more-sep { height: 1px; background: var(--b); margin: 3px 0; }
-    .tab-more-model-row {
-      display: flex; align-items: center; gap: 6px;
-      padding: 5px 8px; font-size: 11px; color: var(--t2);
-    }
-    .tab-more-model-row select {
-      flex: 1; min-width: 0;
-      background: var(--s2); color: var(--t1);
-      border: 1px solid var(--bm); border-radius: var(--rxs);
-      padding: 3px 6px; font-size: 11px; outline: none; appearance: auto; cursor: pointer;
-      transition: border-color .15s;
-    }
-    .tab-more-model-row select:focus { border-color: var(--accent); }
-
-    #tab-add {
-      flex: none; background: transparent; color: var(--t2);
-      border: 1px solid var(--bm); border-radius: var(--rxs);
-      padding: 3px 10px; font-size: 15px; line-height: 1.2;
-      cursor: pointer; transition: background .12s, color .12s;
-    }
-    #tab-add:hover { background: rgba(0,0,0,.06); color: var(--t1); }
-
-    #tab-resume {
-      flex: none; background: transparent; color: var(--accent-dk);
-      border: 1px solid rgba(231,138,106,.3); border-radius: var(--rxs);
-      padding: 3px 10px; font-size: 15px; line-height: 1.2;
-      cursor: pointer; transition: background .12s, color .12s, border-color .12s;
-    }
-    #tab-resume:hover { background: var(--accent-bg); border-color: var(--accent); color: var(--accent-dk); }
-
-    /* ── Rename Tab Modal ───────────────────────────────────── */
-    #rnm {
-      position: fixed; inset: 0; z-index: 20000;
-      background: rgba(0,0,0,.35);
-      display: flex; align-items: center; justify-content: center;
-      animation: fadeIn .12s ease;
-    }
-    .rnm-card {
-      background: var(--s1); border-radius: var(--r);
-      box-shadow: 0 20px 60px rgba(0,0,0,.2), 0 2px 8px rgba(0,0,0,.1);
-      width: 300px; max-width: 90vw; padding: 24px 20px 18px;
-      animation: fadeUp .16s cubic-bezier(.16,1,.3,1);
-    }
-    .rnm-title {
-      font-size: 15px; font-weight: 600; letter-spacing: -.015em;
-      color: var(--t1); margin-bottom: 14px;
-    }
-    .rnm-input {
-      display: block; width: 100%;
-      background: var(--s2); color: var(--t1);
-      border: 1px solid var(--bm); border-radius: var(--rsm);
-      padding: 9px 12px; font-size: 13px; outline: none;
-      transition: border-color .15s, box-shadow .15s;
-    }
-    .rnm-input:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-bg);
-    }
-    .rnm-actions { display: flex; gap: 8px; margin-top: 14px; }
-    .rnm-actions button {
-      flex: 1; border-radius: var(--rsm); padding: 9px; font-size: 13px;
-      cursor: pointer; border: none; transition: filter .15s, background .12s;
-    }
-    #rnm-cancel { background: var(--s2); color: var(--t1); border: 1px solid var(--bm) !important; }
-    #rnm-cancel:hover { background: var(--s3); }
-    #rnm-save { background: var(--accent-g); color: #fff; font-weight: 500; }
-    #rnm-save:hover { filter: brightness(1.08); }
-
-    /* ── New Tab Modal ──────────────────────────────────────── */
-    #ntm {
-      position: fixed; inset: 0; z-index: 20000;
-      background: rgba(0,0,0,.35);
-      display: flex; align-items: center; justify-content: center;
-      animation: fadeIn .12s ease;
-    }
-    .ntm-card {
-      background: var(--s1); border-radius: var(--r);
-      box-shadow: 0 20px 60px rgba(0,0,0,.2), 0 2px 8px rgba(0,0,0,.1);
-      width: 320px; max-width: 90vw; padding: 24px 20px 18px;
-      animation: fadeUp .16s cubic-bezier(.16,1,.3,1);
-    }
-    .ntm-title {
-      font-size: 15px; font-weight: 600; letter-spacing: -.015em;
-      color: var(--t1); margin-bottom: 18px;
-    }
-    .ntm-field {
-      display: block; font-size: 12px; color: var(--t2); margin-bottom: 14px;
-    }
-    .ntm-field select {
-      display: block; width: 100%; margin-top: 5px;
-      background: var(--s2); color: var(--t1);
-      border: 1px solid var(--bm); border-radius: var(--rsm);
-      padding: 8px 10px; font-size: 12px; outline: none; appearance: auto;
-      transition: border-color .15s;
-    }
-    .ntm-field select:focus { border-color: var(--accent); }
-    .ntm-actions { display: flex; gap: 8px; margin-top: 6px; }
-    .ntm-actions button {
-      flex: 1; border-radius: var(--rsm); padding: 9px; font-size: 13px;
-      cursor: pointer; border: none; transition: filter .15s, background .12s;
-    }
-    #ntm-cancel { background: var(--s2); color: var(--t1); border: 1px solid var(--bm) !important; }
-    #ntm-cancel:hover { background: var(--s3); }
-    #ntm-start { background: var(--accent-g); color: #fff; font-weight: 500; }
-    #ntm-start:hover { filter: brightness(1.08); }
-
-    /* ── Animations ──────────────────────────────────────────── */
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(5px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to   { opacity: 1; }
-    }
-    #home:not(.hidden) .home-wrap,
-    #configview:not(.hidden) #cfg-body {
-      animation: fadeUp .2s cubic-bezier(.16,1,.3,1);
-    }
-
-      /* ── Confirm Dialog (showConfirm) ───────────────────── */
-      .confirm-overlay {
-        position: fixed; inset: 0; z-index: 99999;
-        background: rgba(0,0,0,.35);
-        display: flex; align-items: center; justify-content: center;
-        animation: fadeIn .12s ease;
-      }
-      .confirm-card {
-        background: var(--s1); border-radius: var(--r);
-        box-shadow: 0 20px 60px rgba(0,0,0,.2), 0 2px 8px rgba(0,0,0,.1);
-        width: 320px; max-width: 90vw; padding: 24px 20px 18px;
-        animation: fadeUp .16s cubic-bezier(.16,1,.3,1);
-        text-align: center;
-      }
-      .confirm-msg {
-        font-size: 13px; color: var(--t1); margin-bottom: 18px;
-        line-height: 1.5;
-      }
-      .confirm-actions { display: flex; gap: 8px; }
-      .confirm-actions button {
-        flex: 1; border-radius: var(--rsm); padding: 9px; font-size: 13px;
-        cursor: pointer; border: none; transition: filter .15s, background .12s;
-      }
-      .confirm-cancel {
-        background: var(--s2); color: var(--t1);
-        border: 1px solid var(--bm) !important;
-      }
-      .confirm-cancel:hover { background: var(--s3); }
-      .confirm-ok {
-        background: var(--accent-g); color: #fff; font-weight: 500;
-      }
-      .confirm-ok:hover { filter: brightness(1.08); }
-
-
-    /* ── Brand ──────────────────────────────────────────── */
-    .brand {
-      display: flex; align-items: center; gap: 7px; flex: none;
-    }
-    .brand-name {
-      font-size: 14px; font-weight: 700; letter-spacing: -.02em; color: var(--t1);
-      white-space: nowrap;
-    }
-    .brand-name em { font-style: normal; color: var(--accent-dk); }
-
-    /* ── Language Switcher ──────────────────────────────── */
-    .lang-sw {
-      display: flex; align-items: center; gap: 2px; flex: none;
-      background: var(--s1); border: 1px solid var(--bm);
-      border-radius: 20px; padding: 3px 8px;
-    }
-    .lb {
-      background: none; border: none; cursor: pointer;
-      font-size: 11px; color: var(--t3); padding: 1px 4px;
-      border-radius: 3px; transition: color .12s;
-    }
-    .lb.active { color: var(--accent-dk); font-weight: 600; }
-    .lb-sep { font-size: 11px; color: var(--t3); }
-
-    /* ── History Tab Modal ───────────────────────────────── */
-    #htm {
-      position: fixed; inset: 0; z-index: 20000;
-      background: rgba(0,0,0,.35);
-      display: flex; align-items: center; justify-content: center;
-      animation: fadeIn .12s ease;
-    }
-    .htm-card {
-      background: var(--s1); border-radius: var(--r);
-      box-shadow: 0 20px 60px rgba(0,0,0,.2), 0 2px 8px rgba(0,0,0,.1);
-      width: 480px; max-width: 92vw; max-height: 80vh;
-      padding: 20px 20px 16px;
-      animation: fadeUp .16s cubic-bezier(.16,1,.3,1);
-      display: flex; flex-direction: column;
-    }
-    .htm-title {
-      font-size: 15px; font-weight: 600; letter-spacing: -.015em;
-      color: var(--t1); margin-bottom: 10px; flex: none;
-    }
-    .htm-list {
-      flex: 1; overflow-y: auto; min-height: 60px;
-      border: 1px solid var(--b); border-radius: var(--rsm);
-    }
-    .htm-row {
-      display: flex; align-items: center; gap: 8px;
-      padding: 8px 12px; font-size: 12px;
-      border-bottom: 1px solid var(--b);
-    }
-    .htm-row:last-child { border-bottom: none; }
-    .htm-row:hover { background: rgba(0,0,0,.025); }
-    .htm-tag {
-      flex: 1; min-width: 0;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      color: var(--t2);
-    }
-    .htm-open {
-      flex: none; background: var(--accent-g); color: #fff;
-      border: none; border-radius: var(--rxs);
-      padding: 3px 10px; font-size: 11px; font-weight: 500;
-      cursor: pointer; transition: filter .12s;
-    }
-    .htm-open:hover { filter: brightness(1.08); }
-    .htm-foot {
-      display: flex; justify-content: flex-end;
-      margin-top: 12px; flex: none;
-    }
-    #htm-cancel {
-      background: var(--s2); color: var(--t2);
-      border: 1px solid var(--bm); border-radius: var(--rsm);
-      padding: 7px 18px; font-size: 12px; cursor: pointer;
-      transition: background .12s;
-    }
-    #htm-cancel:hover { background: var(--s3); color: var(--t1); }
-
-    /* ── Resume Tab Button ───────────────────────────────── */
-    #tab-resume {
-      flex: none; background: transparent; color: var(--t2);
-      border: 1px solid var(--bm); border-radius: var(--rxs);
-      padding: 3px 10px; font-size: 14px; line-height: 1.3;
-      cursor: pointer; transition: background .12s, color .12s;
-    }
-    #tab-resume:hover { background: rgba(0,0,0,.06); color: var(--t1); }
-
-    /* ── Confirm Dialog ───────────────────────────────────── */
-    .confirm-card {
-      background: var(--s1); border-radius: var(--r);
-      box-shadow: 0 20px 60px rgba(0,0,0,.2), 0 2px 8px rgba(0,0,0,.1);
-      width: 320px; max-width: 90vw; padding: 24px 20px 18px;
-      animation: fadeUp .16s cubic-bezier(.16,1,.3,1);
-    }
-    .confirm-msg {
-      font-size: 14px; line-height: 1.5; color: var(--t1);
-      margin-bottom: 18px;
-    }
-    .confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
-    .confirm-actions button {
-      border-radius: var(--rsm); padding: 8px 20px; font-size: 13px;
-      cursor: pointer; border: none; font-weight: 500;
-      transition: filter .15s, background .12s;
-    }
-    .confirm-cancel {
-      background: var(--s2); color: var(--t1);
-      border: 1px solid var(--bm);
-    }
-    .confirm-cancel:hover { background: var(--s3); }
-    .confirm-ok { background: var(--accent-g); color: #fff; }
-    .confirm-ok:hover { filter: brightness(1.08); }
-
-    /* ── Cloud card ── */
-    .cloud-status { display:flex; align-items:center; gap:8px; font-size:13.5px; color:var(--t2,#6e6e73); margin-bottom:12px; }
-    .cloud-dot { width:8px; height:8px; border-radius:50%; background:#aeaeb2; }
-    .cloud-dot.on { background:#28a745; }
-    .cloud-btn-primary { padding:8px 15px; font-size:13.5px; font-weight:550; border:none; border-radius:8px; cursor:pointer; color:#fff; background:linear-gradient(145deg,#E78A6A,#C45A3A); }
-    .cloud-btn-ghost { padding:8px 15px; font-size:13.5px; border:1px solid rgba(0,0,0,.08); border-radius:8px; cursor:pointer; background:transparent; color:#6e6e73; }
-    .cloud-authbox { margin-top:16px; padding:16px; border-radius:14px; background:rgba(196,90,58,.06); border:1px solid rgba(196,90,58,.18); text-align:center; }
-    .cloud-authbox-label { font-size:12px; color:#6e6e73; }
-    .cloud-usercode { font-family:"SF Mono","JetBrains Mono",monospace; font-size:28px; font-weight:700; letter-spacing:3px; color:#C45A3A; margin:10px 0; }
-    .cloud-link { display:inline-block; font-size:13.5px; color:#0071e3; text-decoration:none; margin-bottom:10px; }
-    .cloud-auth-hint { font-size:12px; color:#aeaeb2; margin-bottom:10px; }
-    .cloud-save-btn { border:none; background:transparent; cursor:pointer; font-size:15px; padding:4px 8px; border-radius:8px; color:#6e6e73; }
-    .cloud-save-btn:hover { background:rgba(196,90,58,.10); color:#C45A3A; }
-    .cloud-save-btn[data-busy] { opacity:.5; pointer-events:none; }
-  </style>
+  <link rel="stylesheet" href="/static/app.css" />
 </head>
 <body>
 
@@ -811,50 +43,9 @@
     </div>
   </div>
 
-  <!-- Home -->
-  <div id="home" class="hidden">
-    <div class="home-wrap">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-        <div class="brand">
-          <svg width="28" height="28" viewBox="0 0 32 32" style="display:block">
-            <defs>
-              <linearGradient id="bg-grad2" x1="0" x2="1" y1="0" y2="1">
-                <stop offset="0%" stop-color="#E78A6A"/>
-                <stop offset="100%" stop-color="#C45A3A"/>
-              </linearGradient>
-            </defs>
-            <rect x="1" y="1" width="30" height="30" rx="7" fill="url(#bg-grad2)"/>
-            <path d="M5 19c3 -2 6 -2 11 -2s8 0 11 2" stroke="#FFF7EE" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".85"/>
-            <circle cx="11" cy="14" r="3.4" fill="#FFF7EE"/>
-            <circle cx="21" cy="14" r="3.4" fill="#FFF7EE"/>
-            <circle cx="11" cy="14" r="1.2" fill="#C45A3A"/>
-            <circle cx="21" cy="14" r="1.2" fill="#C45A3A"/>
-          </svg>
-          <span class="brand-name" style="font-size:17px">claude<em>·</em>tape</span>
-        </div>
-        <div class="lang-sw">
-          <button class="lb" data-lang="en">EN</button>
-          <span class="lb-sep">|</span>
-          <button class="lb" data-lang="zh">中</button>
-        </div>
-      </div>
-      <div class="sec-label" data-i18n="sec_new_session">New Session</div>
-      <div class="home-card">
-        <div class="new-row">
-          <select id="model"></select>
-          <select id="cwd"></select>
-          <button id="start" data-i18n="btn_start">Start</button>
-          <button id="config" data-i18n="btn_config">Config</button>
-        </div>
-      </div>
-      <div class="sec-label" data-i18n="sec_history">History</div>
-      <div id="history"></div>
-    </div>
-  </div>
-
-  <!-- Terminal View -->
-  <div id="termview" class="hidden">
-    <div id="bar">
+  <!-- App Shell -->
+  <div id="shell" class="hidden">
+    <div id="topbar">
       <div class="brand" style="flex:none">
         <svg width="22" height="22" viewBox="0 0 32 32" style="display:block">
           <defs>
@@ -872,20 +63,205 @@
         </svg>
         <span class="brand-name">claude<em>·</em>tape</span>
       </div>
-      <button id="back" data-i18n="btn_back">← Back</button>
       <div id="tab-strip"></div>
       <button id="tab-resume" data-i18n-title="htm_title">⊕</button>
-      <button id="btn-cloud-save" class="cloud-save-btn" data-i18n-title="cloud_save_title" title="Save to cloud">☁︎</button>
       <button id="tab-add">+</button>
-      <div id="tab-more-drop" class="hidden"></div>
-      <span id="status"></span>
-      <div class="lang-sw">
-        <button class="lb" data-lang="en">EN</button>
-        <span class="lb-sep">|</span>
-        <button class="lb" data-lang="zh">中</button>
+            <div class="topbar-right">
+        <span id="status"></span>
+        <button id="btn-cloud-save" class="cloud-save-btn" data-i18n-title="cloud_save_title" title="Save to cloud">☁︎</button>
+        <button id="open-config" class="topbar-icon-btn" data-i18n-title="btn_config" title="Config">⚙</button>
+        <button id="open-ext" class="topbar-icon-btn" data-i18n-title="btn_extaccess" title="External">🌐</button>
+        <div class="lang-sw">
+          <button class="lb" data-lang="en">EN</button>
+          <span class="lb-sep">|</span>
+          <button class="lb" data-lang="zh">中</button>
+        </div>
+        <button id="logout" data-i18n="btn_logout">Logout</button>
       </div>
     </div>
-    <div id="term-container"></div>
+
+    <div id="tab-container">
+      <!-- Home view panel -->
+      <div class="view-panel" data-view="home">
+        <div class="home-wrap">
+          <div class="sec-label" data-i18n="sec_new_session">New Session</div>
+          <div class="home-card">
+            <div class="new-row">
+              <select id="model"></select>
+              <select id="cwd"></select>
+              <button id="start" data-i18n="btn_start">Start</button>
+              <button id="config" data-i18n="btn_config">Config</button>
+              <button id="extaccess" data-i18n="btn_extaccess">🌐 External</button>
+            </div>
+          </div>
+          <div class="sec-label sec-label-row">
+            <span data-i18n="sec_history">History</span>
+            <button id="sel-toggle" class="sel-toggle-btn" data-i18n="sel_toggle">Select</button>
+          </div>
+          <div id="history"></div>
+        </div>
+        <div id="batch-bar" class="batch-bar hidden">
+          <div class="batch-bar-inner">
+            <div class="batch-bar-info">
+              <button id="batch-select-all" class="batch-link" data-i18n="sel_all">Select all</button>
+              <span id="batch-count"></span>
+              <span id="batch-status" class="batch-status"></span>
+            </div>
+            <div class="batch-bar-actions">
+              <button id="batch-activate" class="batch-action" data-i18n="sess_activate">Activate</button>
+              <button id="batch-cloud-save" class="batch-action" data-i18n="cloud_save_title">Save to cloud</button>
+              <span class="batch-model-group">
+                <select id="batch-model" class="batch-action"></select>
+                <button id="batch-apply-model" class="batch-action" data-i18n="sel_apply_model">Apply</button>
+              </span>
+              <button id="batch-close" class="batch-action" data-i18n="sess_close">Close</button>
+              <button id="batch-delete" class="batch-action batch-danger" data-i18n="sess_delete">Delete</button>
+            </div>
+            <button id="batch-cancel" class="batch-cancel" data-i18n="sel_cancel">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Config view panel -->
+      <div class="view-panel hidden" data-view="config">
+        <div class="cfg-panel-head">
+          <span class="cfg-title" data-i18n="cfg_title">Config</span>
+          <span id="cfg-status"></span>
+        </div>
+        <div id="cfg-body">
+          <div class="cfg-card">
+            <label class="cfg-field">claude_bin
+              <input id="cfg-claude-bin" type="text" />
+            </label>
+            <label class="cfg-field">access_token
+              <span class="cfg-token-row">
+                <input id="cfg-token" type="text" />
+                <button id="cfg-token-reset" type="button" class="cfg-add" data-i18n="cfg_token_reset">Reset &amp; kick all</button>
+              </span>
+              <span id="cfg-token-status" class="cfg-token-status"></span>
+            </label>
+            <label class="cfg-field">
+              <span data-i18n="cfg_dirs_label">project_dirs (one per line)</span>
+              <textarea id="cfg-dirs" rows="4"></textarea>
+            </label>
+          </div>
+          <div class="cfg-card">
+            <div class="cfg-h" data-i18n="cfg_models_label">Models</div>
+            <div id="cfg-models"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button id="cfg-add-model" class="cfg-add" data-i18n="cfg_add_model">+ Add model</button>
+              <button id="cfg-import-model" class="cfg-add" data-i18n="cfg_import_model">↑ Import</button>
+              <button id="cfg-export-model" class="cfg-add" data-i18n="cfg_export_model">↓ Export</button>
+            </div>
+            <input type="file" id="cfg-import-file" accept=".json" style="display:none">
+          </div>
+          <div class="cfg-card" id="cloud-card">
+            <div class="cfg-h" data-i18n="cloud_title">Cloud</div>
+            <div id="cloud-status-line" class="cloud-status">
+              <span id="cloud-dot" class="cloud-dot"></span>
+              <span id="cloud-status-text" data-i18n="cloud_unbound">Not connected</span>
+            </div>
+            <label class="cfg-field" data-i18n-wrap>
+              <span data-i18n="cloud_base_url">Cloud server</span>
+              <input id="cloud-base-url" type="text" />
+            </label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+              <button id="cloud-connect" class="cloud-btn-primary" data-i18n="cloud_connect">Connect</button>
+              <button id="cloud-logout" class="cloud-btn-ghost" style="display:none" data-i18n="cloud_logout">Disconnect</button>
+            </div>
+            <div id="cloud-authbox" class="cloud-authbox hidden">
+              <div class="cloud-authbox-label" data-i18n="cloud_enter_code">Confirm this code in your browser:</div>
+              <div id="cloud-usercode" class="cloud-usercode">----</div>
+              <a id="cloud-open-link" class="cloud-link" target="_blank" rel="noopener" data-i18n="cloud_open_browser">Open authorization page</a>
+              <div id="cloud-auth-hint" class="cloud-auth-hint" data-i18n="cloud_waiting">Waiting for confirmation…</div>
+              <button id="cloud-auth-cancel" class="cloud-btn-ghost" data-i18n="cloud_cancel">Cancel</button>
+            </div>
+          </div>
+          <div class="cfg-card" id="frp-card">
+            <div class="cfg-h" data-i18n="cfg_frp_title">External Access (frp server)</div>
+            <label class="cfg-field">server_addr
+              <input id="cfg-frp-server-addr" type="text" value="" />
+            </label>
+            <label class="cfg-field">server_port
+              <input id="cfg-frp-server-port" type="text" value="7000" />
+            </label>
+            <label class="cfg-field">token
+              <input id="cfg-frp-token" type="text" value="" />
+            </label>
+            <label class="cfg-field">subdomain_host
+              <input id="cfg-frp-subdomain-host" type="text" value="" />
+            </label>
+            <button id="cfg-frp-save" class="cfg-add" data-i18n="cfg_frp_save">Save server settings</button>
+            <span id="cfg-frp-status" style="margin-left:8px;font-size:12px;color:var(--accent-dk)"></span>
+          </div>
+          <div class="cfg-actions">
+            <button id="cfg-import-all" class="cfg-add" data-i18n="cfg_import_all">↑ Import All</button>
+            <button id="cfg-export-all" class="cfg-add" data-i18n="cfg_export_all">↓ Export All</button>
+            <input type="file" id="cfg-import-all-file" accept=".json" style="display:none">
+            <span style="flex:1"></span>
+            <button id="cfg-save" data-i18n="cfg_save">Save</button>
+            <button id="cfg-apply" data-i18n="cfg_apply">Apply</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- External Access view panel -->
+      <div class="view-panel hidden" data-view="extaccess">
+        <div class="etm-card">
+          <div class="etm-title" data-i18n="etm_title">External Access</div>
+          <div class="etm-warn" data-i18n="etm_warn">Anyone with the share link can access your local terminal. Share privately; turn off to revoke.</div>
+          <div class="etm-status">
+            <span id="etm-dot" class="etm-dot"></span>
+            <span id="etm-state" data-i18n="etm_off">Off</span>
+          </div>
+          <button id="etm-toggle" class="etm-main off" data-i18n="etm_enable">Enable external access</button>
+
+          <div id="etm-result" class="etm-result">
+            <button id="etm-copyall" class="etm-copyall" data-i18n="etm_copy_all">Copy all (URLs + token)</button>
+            <div class="etm-hint" data-i18n="etm_hint">Open the URL, then enter the access token below at the login screen.</div>
+            <div class="etm-row">
+              <label data-i18n="etm_url_pc">Desktop URL</label>
+              <div class="etm-copyrow">
+                <input id="etm-url" type="text" readonly />
+                <button class="etm-copybtn" data-copy="etm-url" data-i18n="etm_copy">Copy</button>
+              </div>
+              <div class="etm-qr-wrap">
+                <div id="etm-url-qr" class="etm-qr"></div>
+                <span class="etm-qr-cap" data-i18n="etm_qr_pc">Scan to open (desktop)</span>
+              </div>
+            </div>
+            <div class="etm-row">
+              <label data-i18n="etm_url_mobile">Mobile URL (/m)</label>
+              <div class="etm-copyrow">
+                <input id="etm-url-m" type="text" readonly />
+                <button class="etm-copybtn" data-copy="etm-url-m" data-i18n="etm_copy">Copy</button>
+              </div>
+              <div class="etm-qr-wrap">
+                <div id="etm-url-m-qr" class="etm-qr"></div>
+                <span class="etm-qr-cap" data-i18n="etm_qr_mobile">Scan to open (mobile)</span>
+              </div>
+            </div>
+            <div class="etm-row">
+              <label data-i18n="etm_token">Access token</label>
+              <div class="etm-copyrow">
+                <input id="etm-token" type="text" readonly />
+                <button class="etm-copybtn" data-copy="etm-token" data-i18n="etm_copy">Copy</button>
+                <button id="etm-refresh" class="etm-refresh" data-i18n="etm_refresh">↻</button>
+              </div>
+              <div class="etm-qr-wrap">
+                <div id="etm-token-qr" class="etm-qr"></div>
+                <span class="etm-qr-cap" data-i18n="etm_qr_token">Scan for token</span>
+              </div>
+            </div>
+          </div>
+
+          <div id="etm-err" class="etm-err"></div>
+          <div class="etm-foot">
+            <button id="etm-close" data-i18n="etm_close">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- New Tab Modal -->
@@ -930,73 +306,12 @@
     </div>
   </div>
 
-  <!-- Config View -->
-  <div id="configview" class="hidden">
-    <div id="cfgbar">
-      <button id="cfg-back" data-i18n="btn_cfg_back">← Back</button>
-      <span class="cfg-title" data-i18n="cfg_title">Config</span>
-      <span id="cfg-status"></span>
-      <div class="lang-sw">
-        <button class="lb" data-lang="en">EN</button>
-        <span class="lb-sep">|</span>
-        <button class="lb" data-lang="zh">中</button>
-      </div>
-    </div>
-    <div id="cfg-body">
-      <div class="cfg-card">
-        <label class="cfg-field">claude_bin
-          <input id="cfg-claude-bin" type="text" />
-        </label>
-        <label class="cfg-field">access_token
-          <input id="cfg-token" type="text" />
-        </label>
-<label class="cfg-field">
-          <span data-i18n="cfg_dirs_label">project_dirs (one per line)</span>
-          <textarea id="cfg-dirs" rows="4"></textarea>
-        </label>
-      </div>
-      <div class="cfg-card">
-        <div class="cfg-h" data-i18n="cfg_models_label">Models</div>
-        <div id="cfg-models"></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button id="cfg-add-model" class="cfg-add" data-i18n="cfg_add_model">+ Add model</button>
-          <button id="cfg-import-model" class="cfg-add" data-i18n="cfg_import_model">↑ Import</button>
-          <button id="cfg-export-model" class="cfg-add" data-i18n="cfg_export_model">↓ Export</button>
-        </div>
-        <input type="file" id="cfg-import-file" accept=".json" style="display:none">
-      </div>
-      <div class="cfg-card" id="cloud-card">
-        <div class="cfg-h" data-i18n="cloud_title">Cloud</div>
-        <div id="cloud-status-line" class="cloud-status">
-          <span id="cloud-dot" class="cloud-dot"></span>
-          <span id="cloud-status-text" data-i18n="cloud_unbound">Not connected</span>
-        </div>
-        <label class="cfg-field" data-i18n-wrap>
-          <span data-i18n="cloud_base_url">Cloud server</span>
-          <input id="cloud-base-url" type="text" />
-        </label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-          <button id="cloud-connect" class="cloud-btn-primary" data-i18n="cloud_connect">Connect</button>
-          <button id="cloud-logout" class="cloud-btn-ghost" style="display:none" data-i18n="cloud_logout">Disconnect</button>
-        </div>
-        <!-- device authorization in progress -->
-        <div id="cloud-authbox" class="cloud-authbox hidden">
-          <div class="cloud-authbox-label" data-i18n="cloud_enter_code">Confirm this code in your browser:</div>
-          <div id="cloud-usercode" class="cloud-usercode">----</div>
-          <a id="cloud-open-link" class="cloud-link" target="_blank" rel="noopener" data-i18n="cloud_open_browser">Open authorization page</a>
-          <div id="cloud-auth-hint" class="cloud-auth-hint" data-i18n="cloud_waiting">Waiting for confirmation…</div>
-          <button id="cloud-auth-cancel" class="cloud-btn-ghost" data-i18n="cloud_cancel">Cancel</button>
-        </div>
-      </div>
-      <div class="cfg-actions">
-        <button id="cfg-save" data-i18n="cfg_save">Save</button>
-        <button id="cfg-apply" data-i18n="cfg_apply">Apply</button>
-      </div>
-    </div>
-  </div>
+  <!-- Tab context menu (right-click) -->
+  <div id="tab-ctx-menu" class="hidden"></div>
 
   <script src="/static/vendor/xterm.js"></script>
   <script src="/static/vendor/addon-fit.js"></script>
+  <script src="/static/vendor/qrcode.min.js"></script>
   <script src="/static/terminal.js"></script>
 </body>
 </html>

@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>方案 A · 浏览器式切换器（v2）</title>
+<style>
+:root{
+  --bg:#f5f5f7;--s1:#fff;--s2:#f2f2f5;--s3:#e8e8ed;
+  --b:rgba(0,0,0,.07);--bm:rgba(0,0,0,.12);
+  --t1:#1d1d1f;--t2:#6e6e73;--t3:#aeaeb2;
+  --blue:#0071e3;--green:#28a745;--red:#ff3b30;
+  --coral:#C45A3A;--coral2:#E78A6A;
+  --r:14px;--rsm:10px;--rxs:8px;
+  --shadow:0 1px 4px rgba(0,0,0,.08),0 0 0 1px rgba(0,0,0,.05);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:#e9e9ee;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
+  color:var(--t1);min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  padding:24px 12px;gap:14px;-webkit-font-smoothing:antialiased;}
+.cap{font-size:13px;color:#8a8a90;text-align:center;max-width:380px;line-height:1.5;}
+.cap b{color:var(--coral);}
+.phone{width:390px;max-width:100vw;height:780px;max-height:88vh;background:var(--bg);
+  border-radius:38px;box-shadow:0 30px 70px rgba(0,0,0,.28),0 0 0 11px #1b1b1d,0 0 0 13px #2c2c2e;
+  position:relative;overflow:hidden;display:flex;flex-direction:column;}
+@media(max-width:430px){.phone{border-radius:0;height:100vh;max-height:none;box-shadow:none;}body{padding:0;}.cap{display:none;}}
+/* camera island in the middle of the bar */
+.island{position:absolute;top:13px;left:50%;transform:translateX(-50%);width:104px;height:30px;
+  background:#0a0a0b;border-radius:16px;z-index:200;display:flex;align-items:center;justify-content:flex-end;padding-right:11px;}
+.island::after{content:"";width:9px;height:9px;border-radius:50%;background:#16181d;
+  box-shadow:inset 0 0 0 2px #26282e,0 0 3px rgba(60,120,255,.4);}
+
+/* top bar — only LEFT corner has controls, center kept clear for the camera */
+#bar{flex:none;height:56px;display:flex;align-items:center;gap:8px;padding:8px 12px 0;
+  background:rgba(245,245,247,.92);backdrop-filter:saturate(1.6) blur(12px);border-bottom:1px solid var(--b);}
+.icon-btn{width:40px;height:40px;flex:none;display:flex;align-items:center;justify-content:center;
+  background:var(--s1);border:1px solid var(--b);font-size:18px;color:var(--t1);cursor:pointer;
+  border-radius:11px;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+.icon-btn:active{background:var(--s3);}
+.grid-btn{position:relative;font-size:17px;}
+.grid-btn .badge{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 4px;
+  background:var(--coral);color:#fff;font-size:10px;font-weight:700;border-radius:9px;
+  display:flex;align-items:center;justify-content:center;border:2px solid var(--bg);}
+#bar .spacer{flex:1;}
+#bar .ctx{font-size:13px;color:var(--t2);max-width:120px;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;text-align:right;}
+#bar .ctx b{display:block;color:var(--t1);font-size:14px;font-weight:600;}
+
+/* body / views */
+.body{flex:1;min-height:0;position:relative;overflow:hidden;}
+.view{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:none;}
+.view.on{display:block;}
+#v-term{display:flex;flex-direction:column;background:#1e1e1e;}
+.term{flex:1;min-height:0;padding:14px 12px;font-family:"SF Mono",Consolas,monospace;
+  font-size:12.5px;line-height:1.55;color:#d4d4d4;overflow-y:auto;white-space:pre-wrap;}
+.term .pmt{color:#E78A6A;}.term .ok{color:#6cc46c;}.term .dim{color:#7a7a7a;}.term .cy{color:#56b6c2;}
+.keys{flex:none;display:flex;gap:6px;overflow-x:auto;padding:8px 10px 12px;background:#2a2a2e;
+  border-top:1px solid rgba(255,255,255,.08);}
+.keys::-webkit-scrollbar{height:0;}
+.key{flex:none;min-width:46px;height:38px;display:inline-flex;align-items:center;justify-content:center;
+  background:#3a3a40;color:#eaeaea;border:1px solid rgba(255,255,255,.1);border-radius:8px;
+  font-size:14px;font-family:Consolas,monospace;padding:0 12px;}
+.wrap{padding:18px 14px 30px;}
+.sec{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--t3);
+  padding:0 4px;margin:22px 0 8px;}.sec:first-child{margin-top:4px;}
+.card{background:var(--s1);border-radius:var(--r);box-shadow:var(--shadow);padding:14px;}
+.col{display:flex;flex-direction:column;gap:10px;}
+.col select,.col input{width:100%;background:var(--s2);color:var(--t1);border:1px solid var(--bm);
+  border-radius:var(--rsm);padding:12px;font-size:15px;outline:none;}
+.btn-primary{width:100%;background:var(--blue);color:#fff;border:none;border-radius:var(--rsm);
+  padding:14px;font-size:16px;font-weight:500;cursor:pointer;}
+.scard{background:var(--s1);border-radius:var(--r);box-shadow:var(--shadow);padding:12px 14px;margin-bottom:10px;}
+.scard .top{display:flex;align-items:center;gap:8px;}
+.dot{width:8px;height:8px;flex:none;border-radius:50%;}
+.dot.active{background:var(--green);box-shadow:0 0 5px rgba(40,167,69,.4);}.dot.closed{background:var(--t3);}
+.scard .when{color:var(--t2);font-size:13px;}
+.scard .name{font-weight:600;font-size:14px;margin:6px 0 2px;}
+.scard .path{color:var(--t3);font-size:12px;font-family:Consolas,monospace;word-break:break-all;}
+.scard .act{margin-left:auto;background:var(--green);color:#fff;border:none;border-radius:var(--rxs);
+  padding:7px 15px;font-size:13px;font-weight:500;cursor:pointer;}
+
+/* ===== HOME history — index-style: grouped + select/batch + inline edit ===== */
+.sec-row{display:flex;align-items:center;justify-content:space-between;}
+.sel-toggle{background:var(--s2);border:1px solid var(--bm);border-radius:var(--rxs);
+  padding:5px 13px;font-size:12px;color:var(--t2);cursor:pointer;}
+.sel-toggle.on{background:rgba(196,90,58,.1);color:var(--coral);border-color:rgba(196,90,58,.3);}
+.grp{margin-bottom:12px;}
+.grp-head{display:flex;align-items:center;gap:8px;padding:8px 6px 6px;cursor:pointer;user-select:none;}
+.grp-head .caret{color:var(--t3);font-size:11px;width:11px;flex:none;}
+.grp-head .gpath{color:var(--t2);font-size:12px;font-family:Consolas,monospace;flex:1;word-break:break-all;}
+.grp-head .gcount{font-size:10.5px;color:var(--t3);background:var(--s3);border-radius:20px;padding:1px 9px;flex:none;}
+.grp-body{display:flex;flex-direction:column;gap:8px;}
+.grp-body.collapsed{display:none;}
+.hsess{background:var(--s1);border-radius:var(--r);box-shadow:var(--shadow);padding:11px 12px;
+  display:flex;flex-direction:column;gap:9px;border:1.5px solid transparent;transition:border-color .12s;}
+.hsess.sel{border-color:var(--coral);}
+.hsess .r1{display:flex;align-items:center;gap:9px;}
+.hsess .chk{display:none;width:19px;height:19px;accent-color:var(--coral);flex:none;margin:0;}
+#v-home.select .hsess .chk{display:block;}
+#v-home.select .hsess .act{display:none;}
+.hsess .nm{font-weight:600;font-size:14px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hsess .when{color:var(--t3);font-size:11.5px;flex:none;font-variant-numeric:tabular-nums;}
+.hsess .act{background:var(--green);color:#fff;border:none;border-radius:var(--rxs);
+  padding:6px 15px;font-size:12.5px;font-weight:500;cursor:pointer;flex:none;}
+.hsess .r2{display:flex;align-items:center;gap:8px;}
+.hsess .msel{flex:none;max-width:52%;background:var(--s2);color:var(--coral);border:1px solid var(--bm);
+  border-radius:var(--rxs);padding:6px 7px;font-size:12px;outline:none;}
+.hsess .note{flex:1;min-width:0;background:var(--s2);color:var(--t2);border:1px solid var(--bm);
+  border-radius:var(--rxs);padding:6px 9px;font-size:12px;outline:none;}
+.hsess .note:focus,.hsess .msel:focus{border-color:var(--coral);}
+#v-home.select .wrap{padding-bottom:152px;}
+.empty{color:var(--t3);font-size:14px;text-align:center;padding:30px 0;}
+
+/* batch bar pinned to bottom of the body */
+.batch-bar{position:absolute;left:0;right:0;bottom:0;z-index:50;background:rgba(255,255,255,.97);
+  backdrop-filter:blur(10px);border-top:1px solid var(--bm);
+  padding:10px 12px calc(12px + env(safe-area-inset-bottom,0));box-shadow:0 -6px 24px rgba(0,0,0,.1);}
+.batch-bar.hidden{display:none;}
+.batch-info{display:flex;align-items:center;gap:12px;font-size:12.5px;color:var(--t2);margin-bottom:9px;}
+.batch-info .lnk{color:var(--coral);cursor:pointer;font-weight:500;}
+.batch-acts{display:flex;gap:7px;overflow-x:auto;}
+.batch-acts::-webkit-scrollbar{height:0;}
+.batch-acts button{flex:none;background:var(--s2);color:var(--t2);border:1px solid var(--bm);
+  border-radius:var(--rxs);padding:9px 14px;font-size:12.5px;cursor:pointer;white-space:nowrap;}
+.batch-acts .danger{color:var(--red);border-color:rgba(255,59,48,.25);}
+.batch-acts .cancel{margin-left:auto;}
+
+/* ===== ☰ MENU dropdown (shared / global functions) ===== */
+.scrim{position:absolute;inset:0;z-index:280;background:rgba(0,0,0,.18);opacity:0;pointer-events:none;
+  transition:opacity .18s;}
+.scrim.on{opacity:1;pointer-events:auto;}
+.menu{position:absolute;top:54px;left:12px;z-index:290;width:228px;background:var(--s1);
+  border-radius:var(--r);box-shadow:0 18px 50px rgba(0,0,0,.22),0 0 0 1px rgba(0,0,0,.05);
+  padding:7px;transform-origin:top left;transform:scale(.92);opacity:0;pointer-events:none;
+  transition:transform .16s cubic-bezier(.32,.72,0,1),opacity .16s;}
+.menu.on{transform:scale(1);opacity:1;pointer-events:auto;}
+.mi{display:flex;align-items:center;gap:11px;width:100%;padding:11px 12px;background:none;border:none;
+  border-radius:9px;font-size:15px;color:var(--t1);cursor:pointer;text-align:left;}
+.mi:active{background:var(--s2);}
+.mi .mic{width:22px;text-align:center;font-size:17px;color:var(--t2);}
+.mi.danger{color:var(--red);}.mi.danger .mic{color:var(--red);}
+.msep{height:1px;background:var(--b);margin:6px 8px;}
+.mlang{display:flex;align-items:center;gap:8px;padding:8px 12px;}
+.mlang span{font-size:13px;color:var(--t3);flex:1;}
+.mlang button{background:var(--s2);border:1px solid var(--b);border-radius:7px;padding:5px 11px;
+  font-size:13px;color:var(--t2);cursor:pointer;}
+.mlang button.on{background:var(--coral);color:#fff;border-color:var(--coral);}
+
+/* ===== ⊞ GRID switcher (session-related) ===== */
+.sw{position:absolute;inset:0;z-index:300;background:rgba(235,235,240,.86);backdrop-filter:blur(18px);
+  display:flex;flex-direction:column;transform:translateY(100%);transition:transform .26s cubic-bezier(.32,.72,0,1);}
+.sw.on{transform:translateY(0);}
+.sw-head{flex:none;display:flex;align-items:center;padding:18px 18px 4px;}
+.sw-head h2{font-size:21px;font-weight:700;letter-spacing:-.02em;flex:1;}
+.sw-close{width:34px;height:34px;border:none;background:rgba(0,0,0,.06);border-radius:50%;
+  font-size:17px;color:var(--t2);cursor:pointer;}
+.sw-actions{flex:none;display:flex;gap:10px;padding:10px 16px 6px;}
+.sw-act{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 6px;
+  border-radius:var(--r);cursor:pointer;border:1px solid transparent;}
+.sw-act.new{background:linear-gradient(135deg,var(--coral2),var(--coral));color:#fff;}
+.sw-act.hist{background:var(--s1);color:var(--t1);border-color:var(--b);box-shadow:var(--shadow);}
+.sw-act .ai{font-size:22px;line-height:1;}.sw-act .al{font-size:13px;font-weight:600;}
+.sw-sec{padding:14px 18px 6px;font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--t3);}
+.sw-grid{flex:1;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:12px;
+  padding:2px 16px calc(20px + env(safe-area-inset-bottom,0));align-content:start;}
+.tcard{background:var(--s1);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;cursor:pointer;
+  display:flex;flex-direction:column;min-height:128px;border:2px solid transparent;transition:transform .12s;}
+.tcard:active{transform:scale(.97);}
+.tcard.cur{border-color:var(--coral);}
+.tcard .thumb{flex:1;background:#1e1e1e;padding:9px;font-family:Consolas,monospace;font-size:8px;
+  line-height:1.5;color:#9a9a9a;overflow:hidden;position:relative;white-space:pre-wrap;}
+.tcard .thumb .pmt{color:#E78A6A;}.tcard .thumb .ok{color:#6cc46c;}
+.tcard .x{position:absolute;top:6px;right:6px;width:20px;height:20px;background:rgba(0,0,0,.55);
+  color:#fff;border:none;border-radius:50%;font-size:13px;line-height:1;cursor:pointer;}
+.tcard .foot{flex:none;padding:8px 10px;}
+.tcard .foot .nm{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tcard .foot .mt{display:flex;align-items:center;gap:5px;margin-top:3px;}
+.tcard .foot .mt span{font-size:10px;color:var(--t3);}
+.sw-empty{grid-column:1/3;text-align:center;color:var(--t3);font-size:14px;padding:40px 0;}
+
+/* history sub-sheet inside switcher */
+.hsheet{position:absolute;inset:0;z-index:310;background:var(--bg);transform:translateX(100%);
+  transition:transform .24s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column;}
+.hsheet.on{transform:translateX(0);}
+.hsheet-head{flex:none;display:flex;align-items:center;gap:10px;padding:18px 16px 8px;}
+.hsheet-head button{background:none;border:none;font-size:16px;color:var(--blue);cursor:pointer;}
+.hsheet-head h2{font-size:18px;font-weight:700;}
+.hsheet-body{flex:1;overflow-y:auto;padding:6px 14px 30px;}
+</style>
+</head>
+<body>
+<div class="cap"><b>方案 A · v2</b><br>左上角只 2 个按钮，中间给相机让位。<b>☰</b> = 共用/全局功能；<b>⊞</b> 田字 = 会话快速切换 + 新建/历史新建。默认进来是主页。</div>
+<div class="phone">
+  <div class="island"></div>
+
+  <div id="bar">
+    <button class="icon-btn" onclick="toggleMenu()">☰</button>
+    <button class="icon-btn grid-btn" onclick="openSwitcher()">⊞<span class="badge" id="tab-badge">2</span></button>
+    <span class="spacer"></span>
+    <span class="ctx" id="ctx"><b id="ctx-name">主页</b><span id="ctx-sub">新建 / 历史</span></span>
+  </div>
+
+  <div class="body">
+    <!-- HOME (default) — mirrors index.html home -->
+    <div class="view on" id="v-home">
+      <div class="wrap">
+        <div class="sec">新建会话</div>
+        <div class="card"><div class="col">
+          <select><option>官方 Claude（本机登录）</option><option>kimi-k2</option></select>
+          <select><option>D:\proj\auth</option><option>D:\proj\pay</option><option>D:\proj\core</option></select>
+          <button class="btn-primary" onclick="newSess()">开始</button>
+        </div></div>
+        <div class="sec sec-row"><span>历史记录</span>
+          <button class="sel-toggle" id="sel-toggle" onclick="toggleSel()">选择</button></div>
+        <div id="home-hist"></div>
+      </div>
+    </div>
+
+    <!-- TERMINAL -->
+    <div class="view" id="v-term">
+      <div class="term" id="term-text"></div>
+      <div class="keys">
+        <div class="key">Esc</div><div class="key">Tab</div><div class="key">Ctrl</div>
+        <div class="key">↑</div><div class="key">↓</div><div class="key">←</div><div class="key">→</div>
+        <div class="key">Enter</div><div class="key">/</div>
+      </div>
+    </div>
+
+    <!-- CONFIG -->
+    <div class="view" id="v-cfg">
+      <div class="wrap"><div class="sec">配置</div>
+        <div class="card"><div class="col">
+          <label style="font-size:13px;color:var(--t2)">claude_bin<input value="claude" style="margin-top:6px"></label>
+          <label style="font-size:13px;color:var(--t2)">access_token<input value="••••••••••" style="margin-top:6px"></label>
+          <label style="font-size:13px;color:var(--t2)">project_dirs<input value="D:\proj\auth" style="margin-top:6px"></label>
+        </div></div>
+        <div class="sec">模型</div>
+        <div class="card"><div class="col" style="gap:8px">
+          <div style="font-size:13px;color:var(--t2)">#1 内置 · 官方 Claude</div>
+          <button class="btn-primary" style="background:var(--s2);color:var(--blue)">＋ 添加模型</button>
+        </div></div>
+      </div>
+    </div>
+
+    <!-- EXTERNAL / 外网 -->
+    <div class="view" id="v-ext">
+      <div class="wrap"><div class="sec">外网访问</div>
+        <div class="card"><div class="col">
+          <div style="font-size:13px;color:var(--t2);line-height:1.6">frps 内网穿透。开启后生成固定地址 <b style="color:var(--coral)">tape-xxxx.example.com</b>，配二维码一扫即用。</div>
+          <button class="btn-primary" style="background:var(--coral)">开启外网访问</button>
+        </div></div>
+      </div>
+    </div>
+    <!-- batch bar (select mode) -->
+    <div class="batch-bar hidden" id="batch-bar">
+      <div class="batch-info"><span class="lnk" onclick="selAll()">全选</span>
+        <span id="batch-count">已选 0</span></div>
+      <div class="batch-acts">
+        <button onclick="batchAct('激活')">激活</button>
+        <button onclick="batchAct('存云端')">☁︎ 存云端</button>
+        <button onclick="batchAct('改模型')">改模型</button>
+        <button onclick="batchAct('关闭')">关闭</button>
+        <button class="danger" onclick="batchAct('删除')">删除</button>
+        <button class="cancel" onclick="toggleSel()">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ☰ menu -->
+  <div class="scrim" id="scrim" onclick="closeAll()"></div>
+  <div class="menu" id="menu">
+    <button class="mi" onclick="go('home')"><span class="mic">⌂</span>主页</button>
+    <button class="mi" onclick="go('cfg')"><span class="mic">⚙</span>配置</button>
+    <button class="mi" onclick="go('ext')"><span class="mic">🌐</span>外网访问</button>
+    <button class="mi" onclick="closeAll()"><span class="mic">☁︎</span>云端保存当前会话</button>
+    <div class="msep"></div>
+    <div class="mlang"><span>语言</span>
+      <button class="lb" data-l="zh">中</button><button class="lb on" data-l="en">EN</button></div>
+    <div class="msep"></div>
+    <button class="mi danger" onclick="closeAll()"><span class="mic">⎋</span>退出登录</button>
+  </div>
+
+  <!-- ⊞ switcher -->
+  <div class="sw" id="sw">
+    <div class="sw-head"><h2>会话</h2><button class="sw-close" onclick="closeSwitcher()">×</button></div>
+    <div class="sw-actions">
+      <div class="sw-act new" onclick="newSess()"><span class="ai">＋</span><span class="al">新建</span></div>
+      <div class="sw-act hist" onclick="openHist()"><span class="ai">🕘</span><span class="al">历史新建</span></div>
+    </div>
+    <div class="sw-sec">已打开</div>
+    <div class="sw-grid" id="sw-grid"></div>
+
+    <!-- history sub-sheet -->
+    <div class="hsheet" id="hsheet">
+      <div class="hsheet-head"><button onclick="closeHist()">‹ 返回</button><h2>从历史恢复</h2></div>
+      <div class="hsheet-body" id="hist-body"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// open (live) sessions
+let OPEN=[
+  {nm:"修复登录 Bug",path:"D:\\proj\\auth",st:"active",t:0},
+  {nm:"重构支付模块",path:"D:\\proj\\pay",st:"active",t:1},
+];
+// history (resumable)
+const HIST=[
+  {nm:"修复登录 Bug",path:"D:\\proj\\auth",st:"active",when:"今天 14:22"},
+  {nm:"重构支付模块",path:"D:\\proj\\pay",st:"active",when:"今天 11:05"},
+  {nm:"写单元测试",path:"D:\\proj\\core",st:"closed",when:"昨天 19:40"},
+  {nm:"接入 OAuth",path:"D:\\proj\\auth",st:"closed",when:"6/10 09:12"},
+];
+const TERM=[
+  `<span class="pmt">$</span> claude --resume <span class="dim">5f3a…</span>\n<span class="ok">●</span> 正在分析 <span class="cy">auth.py</span> 的登录流程…\n  发现 3 处潜在空指针：\n    · line 42  user.token 可能为 None\n    · line 88  session 未校验过期\n<span class="ok">└</span> 已生成修复方案，是否应用？ <span class="dim">(y/n)</span>\n\n<span class="pmt">▏</span>`,
+  `<span class="pmt">$</span> claude\n<span class="ok">●</span> 拆分 <span class="cy">PaymentService</span> 为 4 个纯函数…\n<span class="ok">└</span> 单元测试 <span class="ok">12/12 通过</span>\n\n<span class="pmt">▏</span>`,
+];
+let cur=0, view="home";
+const $=s=>document.querySelector(s);
+
+let SEL=new Set(), selMode=false, _collapsed=new Set();
+function groupHist(){
+  const m=new Map();
+  HIST.forEach((h,i)=>{ if(!m.has(h.path))m.set(h.path,[]); m.get(h.path).push({...h,idx:i}); });
+  return [...m.entries()];
+}
+function hsessHtml(h){
+  return `<div class="hsess${SEL.has(h.idx)?' sel':''}" data-i="${h.idx}">
+    <div class="r1">
+      <input type="checkbox" class="chk" ${SEL.has(h.idx)?'checked':''} onchange="togglePick(${h.idx})">
+      <span class="dot ${h.st}"></span>
+      <span class="nm">${h.nm}</span>
+      <span class="when">${h.when}</span>
+      <button class="act" onclick="resumeSess('${h.nm}','${h.path}')">激活</button>
+    </div>
+    <div class="r2">
+      <select class="msel"><option>官方 Claude</option><option>kimi-k2</option></select>
+      <input class="note" placeholder="备注…" value="${h.nm}">
+    </div></div>`;
+}
+function renderHomeHist(){
+  const groups=groupHist();
+  if(!groups.length){ $("#home-hist").innerHTML=`<div class="empty">暂无历史会话</div>`; return; }
+  $("#home-hist").innerHTML=groups.map(([path,arr],gi)=>{
+    const col=_collapsed.has(path);
+    return `<div class="grp">
+      <div class="grp-head" onclick="toggleGrp('${path}',${gi})">
+        <span class="caret" id="cr${gi}">${col?'▸':'▾'}</span>
+        <span class="gpath">${path}</span><span class="gcount">${arr.length}</span></div>
+      <div class="grp-body${col?' collapsed':''}" id="gb${gi}">${arr.map(hsessHtml).join('')}</div>
+    </div>`;
+  }).join("");
+}
+function toggleGrp(path,gi){
+  if(_collapsed.has(path))_collapsed.delete(path);else _collapsed.add(path);
+  const b=$("#gb"+gi),c=$("#cr"+gi),col=_collapsed.has(path);
+  b.classList.toggle("collapsed",col);c.textContent=col?"▸":"▾";
+}
+function toggleSel(){
+  selMode=!selMode; SEL.clear();
+  $("#v-home").classList.toggle("select",selMode);
+  $("#sel-toggle").classList.toggle("on",selMode);
+  $("#sel-toggle").textContent=selMode?"完成":"选择";
+  $("#batch-bar").classList.toggle("hidden",!selMode);
+  renderHomeHist(); updateCount();
+}
+function togglePick(i){
+  if(SEL.has(i))SEL.delete(i);else SEL.add(i);
+  const c=document.querySelector(`.hsess[data-i="${i}"]`); if(c)c.classList.toggle("sel",SEL.has(i));
+  updateCount();
+}
+function selAll(){
+  if(SEL.size===HIST.length)SEL.clear(); else HIST.forEach((_,i)=>SEL.add(i));
+  renderHomeHist(); updateCount();
+}
+function updateCount(){ $("#batch-count").textContent="已选 "+SEL.size; }
+function batchAct(name){ alert(name+"：选中 "+SEL.size+" 个会话（预览占位）"); }
+function setCtx(){
+  if(view==="term"&&OPEN[cur]){$("#ctx-name").textContent=OPEN[cur].nm;$("#ctx-sub").textContent=OPEN[cur].path.split("\\").pop();}
+  else{const m={home:["主页","新建 / 历史"],cfg:["配置",""],ext:["外网访问",""]}[view]||["",""];$("#ctx-name").textContent=m[0];$("#ctx-sub").textContent=m[1];}
+}
+function go(v){closeAll();view=v;
+  if(selMode&&v!=="home")toggleSel();
+  document.querySelectorAll(".view").forEach(e=>e.classList.remove("on"));
+  $("#v-"+v).classList.add("on");
+  if(v==="term"&&OPEN[cur])$("#term-text").innerHTML=TERM[OPEN[cur].t]||TERM[0];
+  setCtx();
+}
+/* menu */
+function toggleMenu(){const m=$("#menu"),on=m.classList.contains("on");closeAll();if(!on){m.classList.add("on");$("#scrim").classList.add("on");}}
+/* switcher */
+function openSwitcher(){closeAll();renderGrid();$("#sw").classList.add("on");}
+function closeSwitcher(){$("#sw").classList.remove("on");closeHist();}
+function closeAll(){$("#menu").classList.remove("on");$("#scrim").classList.remove("on");$("#sw").classList.remove("on");closeHist();}
+function renderGrid(){
+  const g=$("#sw-grid");
+  if(!OPEN.length){g.innerHTML=`<div class="sw-empty">还没有打开的会话<br>点上面「新建」或「历史新建」</div>`;return;}
+  g.innerHTML=OPEN.map((s,i)=>`
+    <div class="tcard ${i===cur&&view==='term'?'cur':''}" onclick="pick(${i})">
+      <div class="thumb"><button class="x" onclick="event.stopPropagation();kill(${i})">×</button>${(TERM[s.t]||TERM[0]).replace(/<span class="pmt">▏<\/span>/,'').replace(/\(y\/n\)/,'')}</div>
+      <div class="foot"><div class="nm">${s.nm}</div>
+        <div class="mt"><span class="dot ${s.st}"></span><span>${s.path.split("\\").pop()}</span></div></div>
+    </div>`).join("");
+}
+function pick(i){cur=i;closeSwitcher();go("term");}
+function kill(i){OPEN.splice(i,1);if(cur>=OPEN.length)cur=OPEN.length-1;badge();renderGrid();if(!OPEN.length&&view==="term")go("home");}
+function newSess(){OPEN.push({nm:"新会话 "+(OPEN.length+1),path:"D:\\proj\\new",st:"active",t:0});cur=OPEN.length-1;badge();closeSwitcher();go("term");}
+function resumeSess(nm,path){OPEN.push({nm,path,st:"active",t:0});cur=OPEN.length-1;badge();closeAll();go("term");}
+function badge(){$("#tab-badge").textContent=OPEN.length;$("#tab-badge").style.display=OPEN.length?"flex":"none";}
+/* history sub-sheet */
+function openHist(){
+  $("#hist-body").innerHTML=HIST.map(h=>`
+    <div class="scard"><div class="top"><span class="dot ${h.st}"></span><span class="when">${h.when}</span>
+      <button class="act" onclick="resumeSess('${h.nm}','${h.path}')">恢复</button></div>
+      <div class="name">${h.nm}</div><div class="path">${h.path}</div></div>`).join("");
+  $("#hsheet").classList.add("on");
+}
+function closeHist(){$("#hsheet").classList.remove("on");}
+/* lang toggle */
+document.querySelectorAll(".lb").forEach(b=>b.onclick=()=>{document.querySelectorAll(".lb").forEach(x=>x.classList.remove("on"));b.classList.add("on");});
+renderHomeHist();badge();setCtx();
+</script>
+</body>
+</html>
