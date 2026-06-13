@@ -232,7 +232,7 @@ brand
 # 以下是临时打开项
 docs
 .superpowers
-# CLAUDE.md
+CLAUDE.md
 .workbuddy
 # .gitignore
 static/DESIGN.md
