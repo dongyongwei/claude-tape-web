@@ -1,16 +1,19 @@
 from dataclasses import replace
 from pathlib import Path
 
-from fastapi import Body, Depends, FastAPI, HTTPException, Query
+from fastapi import Body, Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from config import ServeConfig, resolve_write_path, save_config
+from auth import make_require_token
+from config import ServeConfig, resolve_claude_bin, resolve_write_path, save_config
 from pty_manager import PtyManager
 from session_store import SessionStore
 from cloud_routes import make_cloud_router
+from conn_hub import ConnectionHub
+from frp_routes import make_frp_router, auto_start_if_enabled
 from term_ws import make_router
-from token_store import clear_saved_token, save_token
+from token_store import clear_saved_token, generate_token, save_token
 
 _STATIC = Path(__file__).parent / "static"
 
@@ -31,7 +34,10 @@ class Runtime:
     """Mutable runtime state holder: centralises cfg for hot-reload support."""
 
     def __init__(self, cfg: ServeConfig):
-        self.cfg = cfg
+        # Resolve claude_bin to this machine's absolute path up front, so the config
+        # page back-fills the real path and PTY spawns never depend on the launching
+        # process's PATH (a double-clicked / service-launched exe often lacks it).
+        self.cfg = replace(cfg, claude_bin=resolve_claude_bin(cfg.claude_bin))
 
     def apply(self, new_cfg: ServeConfig) -> bool:
         """Swap in new config.
@@ -43,8 +49,12 @@ class Runtime:
         restart_required = (
             new_cfg.host != self.cfg.host or new_cfg.port != self.cfg.port
         )
-        # swap in a copy to preserve the running host/port binding without mutating the caller's new_cfg
-        self.cfg = replace(new_cfg, host=self.cfg.host, port=self.cfg.port)
+        # swap in a copy to preserve the running host/port binding without mutating the caller's
+        # new_cfg, and re-resolve claude_bin to this machine's absolute path.
+        self.cfg = replace(
+            new_cfg, host=self.cfg.host, port=self.cfg.port,
+            claude_bin=resolve_claude_bin(new_cfg.claude_bin),
+        )
         return restart_required
 
 
@@ -52,14 +62,13 @@ def create_app(cfg: ServeConfig | None = None, store: SessionStore | None = None
     cfg = cfg or ServeConfig.from_env()
     store = store or SessionStore()
     pty_manager = PtyManager()
+    hub = ConnectionHub()
     runtime = Runtime(cfg)
 
     app = FastAPI(title="agent_win_serve")
 
-    def require_token(token: str = Query("")) -> None:
-        # if access_token is set, ?token= must match; reads runtime to support hot-reload
-        if runtime.cfg.access_token and token != runtime.cfg.access_token:
-            raise HTTPException(status_code=401, detail="invalid token")
+    # Bearer-token auth (Authorization header); reads runtime to support hot-reload.
+    require_token = make_require_token(lambda: runtime.cfg)
 
     @app.get("/api/project-dirs", dependencies=[Depends(require_token)])
     def api_project_dirs():
@@ -118,16 +127,41 @@ def create_app(cfg: ServeConfig | None = None, store: SessionStore | None = None
         restart = runtime.apply(normalized)
         return {"applied": True, "restart_required": restart}
 
-    app.include_router(make_router(lambda: runtime.cfg, store, pty_manager))
+    app.include_router(make_router(lambda: runtime.cfg, store, pty_manager, hub))
     app.include_router(make_cloud_router(lambda: runtime.cfg, store))
+
+    def _apply_token(new: str) -> None:
+        runtime.cfg.access_token = new
+        save_config(resolve_write_path(), runtime.cfg.to_dict())
+        _sync_token_store(new)
+
+    app.include_router(make_frp_router(lambda: runtime.cfg, _apply_token))
+
+    @app.on_event("startup")
+    def _auto_start_frp():
+        """Resume frp tunnel if it was enabled before restart."""
+        auto_start_if_enabled(lambda: runtime.cfg)
+
+    @app.post("/api/token/reset", dependencies=[Depends(require_token)])
+    async def api_reset_token():
+        # Regenerate the access token, persist + hot-apply it, then force-disconnect
+        # every active terminal (close 4003) so all clients must re-authenticate.
+        new = generate_token()
+        _apply_token(new)
+        kicked = await hub.close_all()
+        return {"token": new, "kicked": kicked}
+
+    # no-store on the HTML entrypoints so a stale page is never served from
+    # browser cache after an upgrade (static assets keep ETag revalidation).
+    _NO_CACHE = {"Cache-Control": "no-store, must-revalidate"}
 
     @app.get("/")
     def index():
-        return FileResponse(_STATIC / "index.html")
+        return FileResponse(_STATIC / "index.html", headers=_NO_CACHE)
 
     @app.get("/m")
     def mobile_index():
-        return FileResponse(_STATIC / "mobile.html")
+        return FileResponse(_STATIC / "mobile.html", headers=_NO_CACHE)
 
     app.mount("/static", StaticFiles(directory=_STATIC), name="static")
     return app

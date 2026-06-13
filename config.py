@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -29,6 +30,92 @@ def resolve_write_path(env: dict | None = None) -> Path:
     if env.get("SERVE_CONFIG"):
         return Path(env["SERVE_CONFIG"])
     return CONFIG_FILE
+
+
+def _registry_path_dirs() -> str:
+    """Windows only: the authoritative PATH from the registry (user + system).
+
+    A double-clicked / service-launched exe can carry a stale process PATH that
+    predates a freshly installed claude (the running session hasn't picked up the
+    new entry yet); the registry already has it. Covers every install method that
+    registers on PATH -- npm, the native installer, winget, scoop -- generically,
+    without hardcoding per-tool directories. Returns "" off Windows or on error.
+    """
+    if os.name != "nt":
+        return ""
+    import winreg
+
+    parts: list[str] = []
+    for root, sub in (
+        (winreg.HKEY_CURRENT_USER, r"Environment"),
+        (winreg.HKEY_LOCAL_MACHINE,
+         r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"),
+    ):
+        try:
+            with winreg.OpenKey(root, sub) as key:
+                val, _ = winreg.QueryValueEx(key, "Path")
+        except OSError:
+            continue
+        if val:
+            parts.append(os.path.expandvars(val))  # expand %USERPROFILE% etc.
+    return os.pathsep.join(parts)
+
+
+def resolve_claude_bin(claude_bin: str | None, env: dict | None = None) -> str:
+    """Resolve claude_bin to THIS machine's absolute path.
+
+    The config value stays portable (often just "claude"); the absolute path
+    differs per machine and must be found at runtime. A packaged exe launched from
+    Explorer or as a service may not inherit the full / freshly-updated user PATH,
+    so the lookup widens progressively instead of trusting only the process PATH.
+
+    Order:
+      1. Absolute path that exists here -> use as-is.
+      2. Absolute path that does NOT exist (e.g. config copied from another
+         machine) -> fall through and re-resolve by file name.
+      3. shutil.which over the process PATH (honours PATHEXT on Windows: .cmd/.exe).
+      4. shutil.which over the registry PATH (user + system) -- catches any
+         installer that registered on PATH when the process PATH is stale.
+      5. Probe common install dirs (~/.local/bin, %APPDATA%/npm) as a last resort.
+      6. Give up: return the original value so the OS surfaces a clear error.
+    """
+    env = os.environ if env is None else env
+    raw = (claude_bin or "claude").strip() or "claude"
+    name = raw
+    p = Path(raw)
+    if p.is_absolute():
+        if p.exists():
+            return str(p)
+        name = p.name  # stale absolute from another machine: retry by file name
+
+    found = shutil.which(name, path=env.get("PATH"))
+    if found:
+        return found
+
+    reg_path = _registry_path_dirs()
+    if reg_path:
+        found = shutil.which(name, path=reg_path)
+        if found:
+            return found
+
+    stem = Path(name).stem or "claude"
+    home = Path.home()
+    appdata = env.get("APPDATA", "")
+    candidates = [
+        home / ".local" / "bin" / f"{stem}.exe",
+        home / ".local" / "bin" / stem,
+    ]
+    if appdata:
+        candidates += [
+            Path(appdata) / "npm" / f"{stem}.cmd",
+            Path(appdata) / "npm" / f"{stem}.ps1",
+            Path(appdata) / "npm" / f"{stem}.exe",
+        ]
+    for c in candidates:
+        if c.exists():
+            return str(c)
+
+    return raw
 
 
 def save_config(path: Path, data: dict) -> None:
@@ -64,7 +151,7 @@ class ServeConfig:
     port: int = 8009
     claude_bin: str = "claude"
     project_dirs: list[str] = field(default_factory=list)
-    access_token: str = ""  # non-empty: browser must pass ?token= for simple access control
+    access_token: str = ""  # non-empty: clients send Authorization: Bearer <token> (WS: Sec-WebSocket-Protocol)
     # third-party model configs: [{id,name,base_url,auth_token,model,small_fast_model}]
     models: list[dict] = field(default_factory=list)
 

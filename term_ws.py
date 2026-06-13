@@ -4,8 +4,9 @@ import logging
 import os
 import uuid
 
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from auth import extract_ws_token
 from pty import create as create_pty
 from pty_manager import PtyManager
 
@@ -18,18 +19,37 @@ log = logging.getLogger("term")
 RECV_TIMEOUT = 300
 
 
-def make_router(get_runtime, store: SessionStore, pty_manager: PtyManager) -> APIRouter:
-    """get_runtime() -> config, lazily resolved at connection time for testability."""
+def make_router(get_runtime, store: SessionStore, pty_manager: PtyManager, hub=None) -> APIRouter:
+    """get_runtime() -> config, lazily resolved at connection time for testability.
+
+    hub (optional ConnectionHub): tracks active connections so an admin token
+    reset can force-disconnect every client.
+    """
     router = APIRouter()
 
     @router.websocket("/ws/term")
-    async def term_ws(websocket: WebSocket, token: str = Query("")):
+    async def term_ws(websocket: WebSocket):
         cfg = get_runtime()
+        # token rides in Sec-WebSocket-Protocol as ["bearer", <token>] (browsers can't
+        # set an Authorization header on a WebSocket). Reject before accept on mismatch.
+        token = extract_ws_token(websocket)
         if cfg.access_token and token != cfg.access_token:
             await websocket.close(code=4003)
             return
 
-        await websocket.accept()
+        # Echo the "bearer" subprotocol back when the client offered it. Chromium-based
+        # browsers (Edge/Chrome) FAIL a WebSocket that requested subprotocols if the 101
+        # selects none — onopen never sticks, the socket drops 1006 right after open, and
+        # the frontend reconnect-loops. We only echo when "bearer" was actually offered;
+        # the no-token path sends no subprotocol, so we must not invent one (selecting a
+        # protocol the client didn't offer makes the browser fail too). Verified stable
+        # through the pyfrpc relay as well.
+        offered = [p.strip() for p in
+                   websocket.headers.get("sec-websocket-protocol", "").split(",") if p.strip()]
+        subproto = "bearer" if offered and offered[0].lower() == "bearer" else None
+        await websocket.accept(subprotocol=subproto)
+        if hub is not None:
+            hub.add(websocket)
         conn_sid = str(uuid.uuid4())  # unique ID for this WS connection
         active_sid: str | None = None  # PTY session sid we are attached to
 
@@ -167,11 +187,24 @@ def make_router(get_runtime, store: SessionStore, pty_manager: PtyManager) -> AP
                     if active_sid:
                         pty_manager.kill(active_sid)
 
-                # unknown types (e.g. "ping" heartbeat) are silently ignored
+                elif mtype == "ping":
+                    # App-level keepalive. uvicorn's control-frame PING/PONG doesn't survive
+                    # the frp HTTP proxy, so the client heartbeats with a {"type":"ping"} DATA
+                    # frame and we answer with a {"type":"pong"} DATA frame. Data frames are
+                    # forwarded reliably, so this round-trip keeps idle tunnels (and any proxy
+                    # read timeout in between) alive in both directions.
+                    try:
+                        await websocket.send_text(json.dumps({"type": "pong"}))
+                    except Exception:
+                        pass
+
+                # other unknown types are silently ignored
 
         except WebSocketDisconnect:
             pass
         finally:
+            if hub is not None:
+                hub.discard(websocket)
             # Detach WebSocket from the PTY entry; PTY keeps running in the background.
             if active_sid:
                 entry = pty_manager.get(active_sid)

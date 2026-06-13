@@ -1,7 +1,8 @@
 import threading
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException
 
+from auth import make_require_token
 import cloud_client
 import cloud_store
 import session_clean
@@ -15,16 +16,13 @@ def _safe_int(v, default):
 
 
 def make_cloud_router(get_runtime, store=None):
-    """get_runtime() -> cfg，用于 ?token= 鉴权（与 app.py 一致）。
-    pending device_code 留在本地后端内存，不下发浏览器。"""
+    """get_runtime() -> cfg, used for Bearer authentication (consistent with app.py).
+    The pending device_code stays in the local backend's memory and is never sent to the browser."""
     router = APIRouter(prefix="/api/cloud")
     pending = {"device_code": None}
     _pending_lock = threading.Lock()
 
-    def require_token(token: str = Query("")) -> None:
-        cfg = get_runtime()
-        if cfg.access_token and token != cfg.access_token:
-            raise HTTPException(status_code=401, detail="invalid token")
+    require_token = make_require_token(get_runtime)
 
     @router.get("/status", dependencies=[Depends(require_token)])
     def status():
@@ -49,7 +47,7 @@ def make_cloud_router(get_runtime, store=None):
             raise HTTPException(status_code=502, detail=body.get("detail", "cloud error"))
         with _pending_lock:
             pending["device_code"] = body["device_code"]
-        # 不下发 device_code，只给浏览器展示所需
+        # Do not send the device_code to the browser; only return what's needed for display
         return {
             "user_code": body["user_code"],
             "verification_uri_complete": body.get("verification_uri_complete", ""),

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>手机端 tab 形态 · 预览选型</title>
+<style>
+:root{--coral:#C45A3A;--coral2:#E78A6A;--t1:#1d1d1f;--t2:#6e6e73;--t3:#aeaeb2;--blue:#0071e3;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;background:#f5f5f7;
+  color:var(--t1);-webkit-font-smoothing:antialiased;padding:40px 18px 60px;}
+.head{max-width:760px;margin:0 auto 30px;}
+.brand{display:flex;align-items:center;gap:9px;margin-bottom:14px;}
+.logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--coral2),var(--coral));
+  display:flex;align-items:center;justify-content:center;color:#FFF7EE;}
+.brand b{font-size:18px;font-weight:700;letter-spacing:-.02em;}
+.brand b em{font-style:normal;color:var(--coral);}
+h1{font-size:26px;font-weight:700;letter-spacing:-.02em;margin-bottom:8px;}
+.head p{color:var(--t2);font-size:15px;line-height:1.6;}
+.grid{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:16px;}
+.opt{display:block;text-decoration:none;color:inherit;background:#fff;border-radius:18px;
+  box-shadow:0 1px 4px rgba(0,0,0,.08),0 0 0 1px rgba(0,0,0,.05);padding:22px 22px;
+  display:flex;gap:18px;align-items:flex-start;transition:transform .14s,box-shadow .14s;}
+.opt:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(0,0,0,.12),0 0 0 1px rgba(196,90,58,.25);}
+.tag{flex:none;width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--coral2),var(--coral));
+  color:#fff;font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+.opt .ti{font-size:18px;font-weight:700;margin-bottom:5px;}
+.opt .de{color:var(--t2);font-size:14px;line-height:1.6;}
+.opt .pros{margin-top:9px;display:flex;flex-wrap:wrap;gap:6px;}
+.chip{font-size:12px;padding:3px 10px;border-radius:20px;background:#f2f2f5;color:var(--t2);}
+.chip.good{background:rgba(40,167,69,.1);color:#1f7a33;}
+.chip.warn{background:rgba(255,149,0,.12);color:#9a6200;}
+.arrow{margin-left:auto;align-self:center;color:var(--t3);font-size:22px;}
+.note{max-width:760px;margin:26px auto 0;font-size:13px;color:var(--t3);line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="head">
+  <div class="brand"><div class="logo">◉</div><b>claude<em>·</em>tape · 手机端</b></div>
+  <h1>多 tab 形态 · 三选一</h1>
+  <p>都基于现有设计语言（浅色 Apple 风 + 珊瑚品牌色）。点开任一方案即可在手机框里实际点击体验：切换会话、新建、关闭、进配置/外网。手机上直接打开则铺满全屏。</p>
+</div>
+<div class="grid">
+  <a class="opt" href="a-switcher.html">
+    <div class="tag">A</div>
+    <div>
+      <div class="ti">浏览器式切换器</div>
+      <div class="de">顶栏只放当前会话名 + 「⊞ N」按钮；点开全屏卡片网格（带终端缩略图），点卡片切换。底部一排去 主页/配置/外网。</div>
+      <div class="pros"><span class="chip good">最省顶栏空间</span><span class="chip good">会话多也不挤</span><span class="chip good">手机最熟悉</span><span class="chip warn">切换多一步点击</span></div>
+    </div><span class="arrow">›</span>
+  </a>
+  <a class="opt" href="b-strip.html">
+    <div class="tag">B</div>
+    <div>
+      <div class="ti">横向滚动 tab 条</div>
+      <div class="de">顶栏下钉一条可左右滑的 tab 药丸条，最忠实移植桌面 tab-strip。Home 钉最左、会话带状态点 + ×、最右是「＋」。</div>
+      <div class="pros"><span class="chip good">与桌面端一致</span><span class="chip good">tab 始终可见</span><span class="chip good">一点即切</span><span class="chip warn">会话多需横滑</span></div>
+    </div><span class="arrow">›</span>
+  </a>
+  <a class="opt" href="c-bottomnav.html">
+    <div class="tag">C</div>
+    <div>
+      <div class="ti">底部导航 + 滑动会话</div>
+      <div class="de">底部固定导航（主页/会话/新建/配置/外网）；会话之间左右滑动切换，顶部圆点指示。导航与会话彻底分离。</div>
+      <div class="pros"><span class="chip good">纯拇指操作</span><span class="chip good">导航最清晰</span><span class="chip warn">滑动切会话不够直观</span><span class="chip warn">底部占一行</span></div>
+    </div><span class="arrow">›</span>
+  </a>
+</div>
+<div class="note">提示：在方案 A 里点 ⊞ 试切换器；方案 B 点药丸/＋/× 试 tab 条；方案 C 点终端左右两侧 ‹ › 模拟滑动切会话。选定后我再按它正式重构 mobile.html / mobile.js（会话并发模型、外网/云端等功能补齐再单独定）。</div>
+</body>
+</html>
