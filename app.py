@@ -11,6 +11,7 @@ from pty_manager import PtyManager
 from session_store import SessionStore
 from cloud_routes import make_cloud_router
 from conn_hub import ConnectionHub
+from files_routes import make_files_router
 from frp_routes import make_frp_router, auto_start_if_enabled
 from term_ws import make_router
 from token_store import clear_saved_token, generate_token, save_token
@@ -129,6 +130,7 @@ def create_app(cfg: ServeConfig | None = None, store: SessionStore | None = None
 
     app.include_router(make_router(lambda: runtime.cfg, store, pty_manager, hub))
     app.include_router(make_cloud_router(lambda: runtime.cfg, store))
+    app.include_router(make_files_router(lambda: runtime.cfg))
 
     def _apply_token(new: str) -> None:
         runtime.cfg.access_token = new

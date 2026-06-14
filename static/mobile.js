@@ -53,7 +53,7 @@ const TRANSLATIONS = {
     confirm_delete:"Delete this session?", confirm_cancel:"Cancel", confirm_ok:"Delete",
     confirm_close_tab:"Close this session?", confirm_close_tab_ok:"Close",
     rename_title:"Rename Session", rename_save:"Save", rename_cancel:"Cancel",
-    default_model:"Claude (local login)", builtin_tag:"Built-in", model_del:"Delete",
+    default_model:"Claude (local login)", shell_default:"Default shell", builtin_tag:"Built-in", model_del:"Delete",
     cloud_title:"Cloud", cloud_unbound:"Not connected", cloud_bound:"Connected",
     cloud_base_url:"Cloud server", cloud_connect:"Connect", cloud_logout:"Disconnect",
     cloud_enter_code:"Confirm this code in your browser:", cloud_open_browser:"Open authorization page",
@@ -115,7 +115,7 @@ const TRANSLATIONS = {
     confirm_delete:"确定要删除此会话吗？", confirm_cancel:"取消", confirm_ok:"删除",
     confirm_close_tab:"关闭此会话？", confirm_close_tab_ok:"关闭",
     rename_title:"重命名会话", rename_save:"保存", rename_cancel:"取消",
-    default_model:"官方 Claude（本机登录）", builtin_tag:"内置", model_del:"删除",
+    default_model:"官方 Claude（本机登录）", shell_default:"默认 Shell", builtin_tag:"内置", model_del:"删除",
     cloud_title:"云端", cloud_unbound:"未连接", cloud_bound:"已连接",
     cloud_base_url:"云端服务器", cloud_connect:"连接云端", cloud_logout:"解绑",
     cloud_enter_code:"请在浏览器确认此验证码：", cloud_open_browser:"打开授权页面",
@@ -154,7 +154,17 @@ function setLang(lang) {
 let token = "";
 if (new URLSearchParams(location.search).has("token")) history.replaceState(null, "", location.pathname);
 let _lastOpts = null, _lastCfgModels = [], _extraModels = [];
-function _allModels() { return [{ id: "", name: t("default_model") }, ..._extraModels]; }
+// Special shell entries: selecting one makes the backend launch a plain shell
+// (cmd / powershell / system default) instead of claude.
+// IDs must stay in sync with the SHELL_* constants in backend spawn.py.
+function _shellModels() {
+  return [
+    { id: "__shell_cmd__", name: "CMD" },
+    { id: "__shell_powershell__", name: "PowerShell" },
+    { id: "__shell_default__", name: t("shell_default") },
+  ];
+}
+function _allModels() { return [{ id: "", name: t("default_model") }, ..._shellModels(), ..._extraModels]; }
 function tokenQs() { return ""; }
 
 const _origFetch = window.fetch.bind(window);
@@ -313,10 +323,16 @@ function applyKbMode(sess) {
 function setKbAllowed(v) {
   _kbAllowed = v;
   const b = $("key-kb"); if (b) b.classList.toggle("armed", v);
+  const s = getActive();
+  const ta = s && helperTextarea(s);
+  // the helper textarea is normally already focused (inputmode=none); browsers only
+  // re-evaluate inputmode on a focus transition, so drop focus first when arming —
+  // otherwise the soft keyboard won't appear until the next toggle.
+  if (v && ta) ta.blur();
   _sessions.forEach(applyKbMode);
-  const s = getActive(); if (!s) return;
+  if (!s) return;
   if (v) s.terminal.focus();                          // raise the keyboard
-  else { const ta = helperTextarea(s); if (ta) ta.blur(); }  // dismiss it
+  else if (ta) ta.blur();                             // dismiss it
 }
 
 function sendTo(sess, obj) {
@@ -604,6 +620,50 @@ async function renderHistory() {
 
   updateBatchBar();
 }
+
+// ---------- Home: pull-to-refresh ----------
+(() => {
+  const view = $("v-home"), ptr = $("ptr"), spin = ptr.querySelector(".ptr-spin");
+  const THRESHOLD = 60, MAX = 90;
+  let startY = 0, pulling = false, refreshing = false;
+
+  view.addEventListener("touchstart", (e) => {
+    pulling = !refreshing && view.scrollTop <= 0;
+    startY = e.touches[0].clientY;
+  }, { passive: true });
+
+  view.addEventListener("touchmove", (e) => {
+    if (!pulling) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy <= 0 || view.scrollTop > 0) { pulling = false; ptr.classList.remove("snap"); ptr.style.height = "0px"; ptr.style.opacity = "0"; return; }
+    e.preventDefault();
+    ptr.classList.remove("snap");
+    const h = Math.min(dy * 0.5, MAX);
+    ptr.style.height = h + "px";
+    ptr.style.opacity = Math.min(h / THRESHOLD, 1);
+    spin.style.transform = `rotate(${(h / THRESHOLD) * 360}deg)`;
+  }, { passive: false });
+
+  view.addEventListener("touchend", async () => {
+    if (!pulling) return;
+    pulling = false;
+    const h = parseFloat(ptr.style.height) || 0;
+    ptr.classList.add("snap");
+    if (h >= THRESHOLD) {
+      refreshing = true;
+      spin.style.transform = "";
+      ptr.classList.add("loading");
+      ptr.style.height = "44px"; ptr.style.opacity = "1";
+      try { populate(await fetchOptions()); } catch (_) {}
+      await renderHistory();
+      ptr.classList.remove("loading");
+      ptr.style.height = "0px"; ptr.style.opacity = "0";
+      refreshing = false;
+    } else {
+      ptr.style.height = "0px"; ptr.style.opacity = "0";
+    }
+  });
+})();
 
 // ---------- Batch / select mode ----------
 function setSelectMode(on) {

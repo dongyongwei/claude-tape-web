@@ -1,6 +1,42 @@
+import os
+import sys
 from urllib.parse import urlparse
 
 from env_builder import build as build_env
+
+# Special entries in the model dropdown: selecting one launches a plain shell
+# instead of claude. These ids never appear in cfg.models — identified by prefix.
+SHELL_CMD = "__shell_cmd__"
+SHELL_POWERSHELL = "__shell_powershell__"
+SHELL_DEFAULT = "__shell_default__"
+SHELL_MODEL_IDS = (SHELL_CMD, SHELL_POWERSHELL, SHELL_DEFAULT)
+
+
+def shell_argv(model_id: str | None) -> list[str] | None:
+    """Special shell entry → argv that launches that shell. Returns None for any
+    non-shell id (caller falls through to the claude path)."""
+    win = sys.platform == "win32"
+    if model_id == SHELL_CMD:
+        return ["cmd.exe"] if win else ["/bin/sh"]
+    if model_id == SHELL_POWERSHELL:
+        return ["powershell.exe"] if win else ["pwsh"]
+    if model_id == SHELL_DEFAULT:
+        if win:
+            return [os.environ.get("COMSPEC", "cmd.exe")]
+        return [os.environ.get("SHELL", "/bin/sh")]
+    return None
+
+
+_SHELL_NAMES = {
+    SHELL_CMD: "CMD",
+    SHELL_POWERSHELL: "PowerShell",
+    SHELL_DEFAULT: "Default shell",
+}
+
+
+def shell_display_name(model_id: str | None) -> str:
+    """Friendly shell name used in the session list; empty string for non-shell ids."""
+    return _SHELL_NAMES.get(model_id or "", "")
 
 
 def _is_anthropic_base_url(url: str) -> bool:
@@ -79,6 +115,8 @@ def is_claude_target(data: dict, models: list[dict] | None) -> bool:
     and is left untouched (full delivery).
     """
     mid = data.get("model_id")
+    if mid in SHELL_MODEL_IDS:
+        return False  # plain shell session — no claude transcript to clean up
     if not mid:
         return True
     chosen = next((m for m in (models or []) if m.get("id") == mid), None)
@@ -100,6 +138,12 @@ def build_spawn(data: dict, claude_bin: str, sid: str,
     cols = int(data.get("cols", 120))
     rows = int(data.get("rows", 30))
     cwd = data.get("cwd")
+    shell = shell_argv(data.get("model_id"))
+    if shell is not None:
+        # Plain shell: skip every claude arg and the model env injection
+        # (resume/continue are also ignored).
+        env = build_env(None, cwd, cols, rows)
+        return shell, env, cols, rows, cwd
     base = [claude_bin]
     argv = build_claude_command(
         base, sid,

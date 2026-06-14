@@ -11,7 +11,7 @@ from pty import create as create_pty
 from pty_manager import PtyManager
 
 from session_store import SessionStore
-from spawn import build_spawn, is_claude_target
+from spawn import build_spawn, is_claude_target, shell_display_name
 from session_clean import clean_for_claude
 
 log = logging.getLogger("term")
@@ -162,6 +162,9 @@ def make_router(get_runtime, store: SessionStore, pty_manager: PtyManager, hub=N
                                  if m.get("id") == model_id),
                                 "",
                             ) if model_id else ""
+                            # Special shell entries aren't in cfg.models — supply a friendly name
+                            if not model_name:
+                                model_name = shell_display_name(model_id)
                             store.record_spawn(
                                 effective_sid, cwd,
                                 model_id, model_name, cols, rows,

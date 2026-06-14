@@ -67,8 +67,6 @@
       <button id="tab-resume" data-i18n-title="htm_title">⊕</button>
       <button id="tab-add">+</button>
             <div class="topbar-right">
-        <span id="status"></span>
-        <button id="btn-cloud-save" class="cloud-save-btn" data-i18n-title="cloud_save_title" title="Save to cloud">☁︎</button>
         <button id="open-config" class="topbar-icon-btn" data-i18n-title="btn_config" title="Config">⚙</button>
         <button id="open-ext" class="topbar-icon-btn" data-i18n-title="btn_extaccess" title="External">🌐</button>
         <div class="lang-sw">
@@ -92,6 +90,7 @@
               <button id="start" data-i18n="btn_start">Start</button>
               <button id="config" data-i18n="btn_config">Config</button>
               <button id="extaccess" data-i18n="btn_extaccess">🌐 External</button>
+              <button id="files" data-i18n="btn_files">📁 Files</button>
             </div>
           </div>
           <div class="sec-label sec-label-row">
@@ -261,6 +260,43 @@
           </div>
         </div>
       </div>
+
+      <!-- Files view panel -->
+      <div class="view-panel hidden" data-view="files">
+        <div class="fm-wrap">
+          <div class="fm-bar">
+            <select id="fm-drive" class="fm-drive" title="Drives"></select>
+            <button id="fm-up" class="fm-btn" data-i18n-title="fm_up" title="Up">⬆</button>
+            <button id="fm-refresh" class="fm-btn" data-i18n-title="fm_refresh" title="Refresh">↻</button>
+            <input id="fm-path" class="fm-path" type="text" spellcheck="false" />
+            <button id="fm-go" class="fm-btn" data-i18n="fm_go">Go</button>
+            <span class="fm-bar-sep"></span>
+            <button id="fm-upload" class="fm-btn" data-i18n="fm_upload">Upload</button>
+            <button id="fm-mkdir" class="fm-btn" data-i18n="fm_mkdir">New folder</button>
+            <input type="file" id="fm-upload-input" style="display:none" />
+          </div>
+          <div id="fm-err" class="fm-err"></div>
+          <div class="fm-body">
+            <div class="fm-list-wrap">
+              <table class="fm-table">
+                <thead>
+                  <tr>
+                    <th data-i18n="fm_name">Name</th>
+                    <th class="fm-col-size" data-i18n="fm_size">Size</th>
+                    <th class="fm-col-mtime" data-i18n="fm_mtime">Modified</th>
+                    <th class="fm-col-act" data-i18n="fm_actions">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="fm-list"></tbody>
+              </table>
+            </div>
+            <div class="fm-splitter" id="fm-splitter" title="Drag to resize"></div>
+            <div class="fm-preview" id="fm-preview">
+              <div class="fm-preview-empty" data-i18n="fm_pick">Select a file to preview</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -313,5 +349,7 @@
   <script src="/static/vendor/addon-fit.js"></script>
   <script src="/static/vendor/qrcode.min.js"></script>
   <script src="/static/terminal.js"></script>
+  <script src="/static/vendor/marked.min.js"></script>
+  <script src="/static/files.js"></script>
 </body>
 </html>
