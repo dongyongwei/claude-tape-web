@@ -78,6 +78,11 @@
     #v-term.on{display:flex;flex-direction:column;}
 
     /* ---------- Home ---------- */
+    .ptr{height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;opacity:0;}
+    .ptr.snap{transition:height .25s,opacity .2s;}
+    .ptr-spin{width:20px;height:20px;border:2px solid var(--bm);border-top-color:var(--coral);border-radius:50%;}
+    .ptr.loading .ptr-spin{animation:ptr-spin .7s linear infinite;}
+    @keyframes ptr-spin{to{transform:rotate(360deg);}}
     .home-wrap{max-width:560px;margin:0 auto;padding:18px 16px calc(40px + var(--safe-b));}
     .sec-label{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
       color:var(--t3);padding:0 4px;margin:24px 0 8px;}
@@ -419,6 +424,7 @@
     <div id="bodyc">
       <!-- HOME -->
       <div class="view on" id="v-home">
+        <div class="ptr" id="ptr"><div class="ptr-spin"></div></div>
         <div class="home-wrap">
           <div class="sec-label" data-i18n="sec_new_session">New Session</div>
           <div class="home-card">
@@ -456,6 +462,8 @@
           </div>
           <div id="keys-main" class="keys-line">
             <button class="key key-kb" id="key-kb" aria-label="Keyboard">⌨</button>
+            <button class="key" data-txt="@">@</button>
+            <button class="key" data-txt="ok">OK</button>
             <button class="key" data-seq="esc">Esc</button>
             <button class="key" data-seq="up">↑</button>
             <button class="key" data-seq="down">↓</button>
@@ -594,12 +602,12 @@
         <span class="st" id="batch-status"></span>
       </div>
       <div class="batch-acts">
+        <button id="batch-delete" class="danger" data-i18n="sess_delete">Delete</button>
         <button id="batch-activate" data-i18n="sess_activate">Activate</button>
         <button id="batch-cloud-save" data-i18n="cloud_save_title">Save to cloud</button>
         <select id="batch-model"></select>
         <button id="batch-apply-model" data-i18n="sel_apply_model">Apply</button>
         <button id="batch-close" data-i18n="sess_close">Close</button>
-        <button id="batch-delete" class="danger" data-i18n="sess_delete">Delete</button>
         <button id="batch-cancel" class="cancel" data-i18n="sel_cancel">Cancel</button>
       </div>
     </div>

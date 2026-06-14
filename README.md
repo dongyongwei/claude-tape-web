@@ -28,6 +28,8 @@
 - **Web Terminal**: Browser-based terminal built on xterm.js, full PTY interaction
 - **Multi-Session**: Run multiple Claude Code sessions simultaneously
 - **Multi-Model**: Support for third-party Anthropic-compatible endpoints (Kimi K2, Zhipu GLM, etc.)
+- **Plain Shell Sessions**: One-click launch of CMD / PowerShell / system default shell from the same dropdown — handy when you just want a terminal, no Claude
+- **Web File Manager (PC)**: Full-disk browser, edit/preview/upload/download/rename/delete, Markdown & HTML render preview, gated by the same Bearer token
 - **Access Control**: Simple token-based authentication to prevent unauthorized access
 - **Session Persistence**: Local session index storage with history viewing
 - **Visual Configuration**: In-page configuration editing with hot-reload
@@ -57,6 +59,18 @@
 - Supports exporting third-party model configurations as JSON files for backup
 - Supports importing model configurations from JSON files, one-click restoration after switching computers
 - Import/export functions directly in settings interface, no manual configuration file editing required
+
+### Web File Manager (PC)
+- Full-disk browser opened from the Home view's **📁 Files** entry — independent view tab, drives + path bar + breadcrumb-style navigation
+- Inline editor for text files (extension allowlist + NUL-byte sniff, 1 MiB ceiling); Markdown & HTML get a one-click rendered preview
+- Image preview, drag-resizable list/preview splitter, single-file upload, new folder, rename, delete
+- Every endpoint is guarded by the same Bearer-token dependency as the rest of the app — even under public frp exposure only a token holder can reach it
+- Path safety: every input resolves to an absolute path; new names for mkdir/rename must be a single path component (separators or `..` are rejected); delete refuses a drive root as a last-resort guard
+
+### Plain Shell Sessions (no Claude)
+- The model dropdown now exposes **CMD / PowerShell / Default shell** entries; selecting one starts a plain shell instead of Claude
+- Same multi-tab UX: the shell runs inside the web terminal, survives WS reconnect, has its own session record
+- Useful when you just want a remote shell without burning a Claude conversation
 
 ## Quick Start
 

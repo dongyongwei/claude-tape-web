@@ -35,6 +35,32 @@ const TRANSLATIONS = {
     tab_home:          "Home",
     tab_config:        "Config",
     tab_ext:           "External",
+    tab_files:         "Files",
+    btn_files:         "📁 Files",
+    fm_up:             "Up",
+    fm_refresh:        "Refresh",
+    fm_go:             "Go",
+    fm_upload:         "Upload",
+    fm_mkdir:          "New folder",
+    fm_name:           "Name",
+    fm_size:           "Size",
+    fm_mtime:          "Modified",
+    fm_actions:        "Actions",
+    fm_download:       "Download",
+    fm_rename:         "Rename",
+    fm_delete:         "Delete",
+    fm_save:           "Save",
+    fm_saved:          "Saved",
+    fm_render:         "Preview",
+    fm_source:         "Source",
+    fm_empty:          "Empty folder",
+    fm_pick:           "Select a file to preview",
+    fm_binary:         "Cannot preview this file type — download it instead.",
+    fm_drives:         "Drives",
+    fm_confirm_delete: "Delete \"{0}\"? This cannot be undone.",
+    fm_prompt_mkdir:   "New folder name:",
+    fm_prompt_rename:  "New name:",
+    fm_load_fail:      "Failed to load",
     etm_refresh:       "↻",
     etm_qr_pc:         "Scan to open (desktop)",
     etm_qr_mobile:     "Scan to open (mobile)",
@@ -110,6 +136,7 @@ const TRANSLATIONS = {
     rename_save:         "Save",
     rename_cancel:       "Cancel",
     default_model:    "Claude (local login)",
+    shell_default:    "Default shell",
     builtin_tag:      "Built-in",
     model_del:        "Delete",
     ntm_title:        "New Session",
@@ -122,6 +149,7 @@ const TRANSLATIONS = {
     htm_open:         "Open",
     tab_rename:       "Rename",
     tab_model:        "Model",
+    tab_status:       "Status",
     cloud_title:       "Cloud",
     cloud_unbound:     "Not connected",
     cloud_bound:       "Connected",
@@ -185,6 +213,32 @@ const TRANSLATIONS = {
     tab_home:          "主页",
     tab_config:        "配置",
     tab_ext:           "外网",
+    tab_files:         "文件",
+    btn_files:         "📁 文件",
+    fm_up:             "上一级",
+    fm_refresh:        "刷新",
+    fm_go:             "前往",
+    fm_upload:         "上传",
+    fm_mkdir:          "新建文件夹",
+    fm_name:           "名称",
+    fm_size:           "大小",
+    fm_mtime:          "修改时间",
+    fm_actions:        "操作",
+    fm_download:       "下载",
+    fm_rename:         "重命名",
+    fm_delete:         "删除",
+    fm_save:           "保存",
+    fm_saved:          "已保存",
+    fm_render:         "预览",
+    fm_source:         "源码",
+    fm_empty:          "空文件夹",
+    fm_pick:           "选择一个文件预览",
+    fm_binary:         "无法预览此类型文件，请下载查看。",
+    fm_drives:         "驱动器",
+    fm_confirm_delete: "确定删除「{0}」？此操作不可恢复。",
+    fm_prompt_mkdir:   "新文件夹名称：",
+    fm_prompt_rename:  "新名称：",
+    fm_load_fail:      "加载失败",
     etm_refresh:       "↻",
     etm_qr_pc:         "扫码打开（电脑端）",
     etm_qr_mobile:     "扫码打开（手机端）",
@@ -260,6 +314,7 @@ const TRANSLATIONS = {
     rename_save:         "保存",
     rename_cancel:       "取消",
     default_model:    "官方 Claude（本机登录）",
+    shell_default:    "默认 Shell",
     builtin_tag:      "内置",
     model_del:        "删除",
     ntm_title:        "新建会话",
@@ -272,6 +327,7 @@ const TRANSLATIONS = {
     htm_open:         "打开",
     tab_rename:       "重命名",
     tab_model:        "模型",
+    tab_status:       "状态",
     cloud_title:       "云端",
     cloud_unbound:     "未连接",
     cloud_bound:       "已连接",
@@ -331,11 +387,9 @@ function setLang(lang) {
       renderHistory();
     } else if (active.type === "config") {
       renderModels(_lastCfgModels);
-    } else if (active.type === "session") {
-      $("status").textContent = t(active.statusKey);
     }
   }
-  renderTabStrip();   // view 型 tab 标签随语言刷新
+  renderTabStrip();   // refresh view-type tab labels for the new language
 }
 
 // Token never travels in the URL anymore. It is held in memory (+ optional
@@ -361,12 +415,13 @@ let _tabCounter = 0;
 
 // ---------- View tabs (home / config / extaccess) ----------
 function viewLabel(type) {
-  return { home: t("tab_home"), config: t("tab_config"), extaccess: t("tab_ext") }[type] || type;
+  return { home: t("tab_home"), config: t("tab_config"), extaccess: t("tab_ext"), files: t("tab_files") }[type] || type;
 }
 function findViewTab(type) { return _tabs.find((tb) => tb.type === type) || null; }
 
-// 打开或切到一个 singleton view tab;首次创建时跑各自的"打开钩子"。
+// Open or switch to a singleton view tab; on first creation runs that view's open-hook.
 async function openViewTab(type) {
+  const prevActive = getActiveTab(); // capture before we activate the view tab
   let tab = findViewTab(type);
   if (tab) {
     activateTab(tab.id);
@@ -390,6 +445,12 @@ async function openViewTab(type) {
     $("etm-err").textContent = "";
     const s = await _etmStatus().catch((e) => { $("etm-err").textContent = e.message; });
     if (s && s.state === "connecting") _etmStartPoll();
+  } else if (type === "files") {
+    // First open lands on the "current" dir: the active session's cwd if we came
+    // from one, otherwise the project dir selected on the Home panel.
+    let dir = (prevActive && prevActive.type === "session" && prevActive.connectOpts?.cwd) || "";
+    if (!dir) dir = $("cwd")?.value || "";
+    window.filesOpen?.(dir);
   }
   return tab;
 }
@@ -408,11 +469,20 @@ function _saveTabState() {
       model_id: t.model_id || t.connectOpts?.model_id || "",
       cwd: t.connectOpts?.cwd || "",
     }));
+  // Open singleton view tabs (config / extaccess / files). Home is always
+  // recreated by initShell, so it is intentionally excluded here.
+  const views = _tabs
+    .filter((t) => t.type !== "session" && t.type !== "home")
+    .map((t) => t.type);
   const activeId = _activeTabId;
   const activeTab = _tabs.find((t) => t.id === activeId);
   const activeSid = activeTab && activeTab.type === "session" ? activeTab.sid : null;
+  const activeView =
+    activeTab && activeTab.type !== "session" && activeTab.type !== "home"
+      ? activeTab.type
+      : null;
   try {
-    localStorage.setItem(_TAB_STATE_KEY, JSON.stringify({ sessions, activeSid }));
+    localStorage.setItem(_TAB_STATE_KEY, JSON.stringify({ sessions, views, activeSid, activeView }));
   } catch (_) {}
 }
 
@@ -423,24 +493,28 @@ async function _restoreTabs(raw) {
   if (!raw) return;
   let saved;
   try { saved = JSON.parse(raw); } catch (_) { return; }
-  if (!saved || !Array.isArray(saved.sessions) || !saved.sessions.length) return;
+  if (!saved) return;
+  const savedSessions = Array.isArray(saved.sessions) ? saved.sessions : [];
+  const savedViews = Array.isArray(saved.views) ? saved.views : [];
+  if (!savedSessions.length && !savedViews.length) return;
 
   // Clear saved state immediately — if restore fails partway we don't want a loop
   localStorage.removeItem(_TAB_STATE_KEY);
 
   // Check which sessions still exist on the server before restoring
-  let serverSessions = [];
-  try {
-    const groups = await fetch(`/api/sessions`).then((r) => r.json());
-    serverSessions = groups.flatMap((g) => g.sessions);
-  } catch (_) { return; }
+  let serverMap = new Map();
+  if (savedSessions.length) {
+    try {
+      const groups = await fetch(`/api/sessions`).then((r) => r.json());
+      serverMap = new Map(groups.flatMap((g) => g.sessions).map((s) => [s.sid, s]));
+    } catch (_) { /* session list unavailable — still restore view tabs below */ }
+  }
 
-  const serverMap = new Map(serverSessions.map((s) => [s.sid, s]));
   let restoredActiveTabId = null;
 
   _restoringTabs = true;
   try {
-    for (const sv of saved.sessions) {
+    for (const sv of savedSessions) {
       const info = serverMap.get(sv.sid);
       if (!info) continue; // session no longer exists, skip
       const tab = createTabSession();
@@ -452,6 +526,11 @@ async function _restoreTabs(raw) {
         model_id: sv.model_id || undefined,
       });
       if (sv.sid === saved.activeSid) restoredActiveTabId = tab.id;
+    }
+    // Reopen singleton view tabs (config / extaccess / files) that were open.
+    for (const vt of savedViews) {
+      const tab = await openViewTab(vt);
+      if (tab && saved.activeView && vt === saved.activeView) restoredActiveTabId = tab.id;
     }
   } finally {
     _restoringTabs = false;
@@ -487,7 +566,17 @@ const _HEARTBEAT_MS = 5_000;  // empirically: a 10s gap lets the frp HTTP proxy 
 // {type:"pong"} so data flows BOTH ways. uvicorn's own WS PING is disabled (control frames don't
 // survive the frp relay, which is what made every tunnelled session drop at ~40s).
 
-function _allModels() { return [{ id: "", name: t("default_model") }, ..._extraModels]; }
+// Special shell entries: selecting one makes the backend launch a plain shell
+// (cmd / powershell / system default) instead of claude.
+// IDs must stay in sync with the SHELL_* constants in backend spawn.py.
+function _shellModels() {
+  return [
+    { id: "__shell_cmd__", name: "CMD" },
+    { id: "__shell_powershell__", name: "PowerShell" },
+    { id: "__shell_default__", name: t("shell_default") },
+  ];
+}
+function _allModels() { return [{ id: "", name: t("default_model") }, ..._shellModels(), ..._extraModels]; }
 
 function getActiveTab() {
   return _tabs.find((tab) => tab.id === _activeTabId) || null;
@@ -1053,12 +1142,10 @@ function createTabSession() {
 }
 
 function setTabStatus(tab, key, color) {
+  // Status is no longer shown in the top bar; it's viewable on demand via the
+  // session tab's right-click context menu. Just persist it on the tab.
   tab.statusKey = key;
   tab.statusColor = color || "";
-  if (tab.id === _activeTabId) {
-    $("status").textContent = t(key);
-    $("status").style.color = tab.statusColor;
-  }
 }
 
 function activateTab(id) {
@@ -1072,11 +1159,6 @@ function activateTab(id) {
     tab.panel.classList.remove("hidden");
     if (tab.type === "session") {
       tab.fitAddon.fit();
-      $("status").textContent = t(tab.statusKey);
-      $("status").style.color = tab.statusColor;
-    } else {
-      $("status").textContent = "";
-      $("status").style.color = "";
     }
   }
   renderTabStrip();
@@ -1087,7 +1169,7 @@ function closeTab(id) {
   const idx = _tabs.findIndex((tab) => tab.id === id);
   if (idx === -1) return;
   const tab = _tabs[idx];
-  if (tab.closeable === false) return;          // Home 永不关闭
+  if (tab.closeable === false) return;          // Home tab is never closable
 
   if (tab.type === "session") {
     tab.intentionalClose = true;
@@ -1097,14 +1179,14 @@ function closeTab(id) {
     tab.terminal.dispose();
     tab.panel.remove();
   } else {
-    // view 型:隐藏 panel,保留 DOM 供下次重开复用(状态不丢)
+    // view tab: just hide the panel, keep the DOM so reopening preserves state
     tab.panel.classList.add("hidden");
     if (tab.type === "config") stopCloudPoll();
     if (tab.type === "extaccess") _etmStopPoll();
   }
   _tabs.splice(idx, 1);
 
-  // _tabs 始终至少保留 Home,不会为空
+  // _tabs always retains Home, so it can never be empty
   if (_activeTabId === id) {
     const newIdx = Math.min(idx, _tabs.length - 1);
     activateTab(_tabs[newIdx].id);
@@ -1212,6 +1294,15 @@ function startRenameTab(id) {
     </button>`;
 
     if (tab.type === "session") {
+      // Status display row (read-only) — moved here from the top bar
+      const stColor = tab.statusColor || "var(--t3)";
+      html += `<div class="tab-ctx-sep"></div>
+        <div class="tab-ctx-status-row">
+          <span class="ctx-status-dot" style="background:${esc(stColor)}"></span>
+          <span class="ctx-status-label">${t("tab_status")}</span>
+          <span class="ctx-status-val" style="color:${esc(stColor)}">${t(tab.statusKey || "not_connected")}</span>
+        </div>`;
+
       // Model select row (inline in context menu)
       try {
         const models = await fetch(`/api/models${tokenQs()}`).then((r) => r.json());
@@ -1235,6 +1326,10 @@ function startRenameTab(id) {
       html += `<button class="tmi" data-ctx="rename" data-ctx-tab="${tabId}">
         <span class="ctx-icon">✏</span>${t("tab_rename")}
       </button>`;
+      html += `<div class="tab-ctx-sep"></div>
+        <button class="tmi tmi-danger" data-ctx="delete" data-ctx-tab="${tabId}">
+          <span class="ctx-icon">🗑</span>${t("sess_delete")}
+        </button>`;
     }
 
     ctxMenu.innerHTML = html;
@@ -1280,28 +1375,31 @@ function startRenameTab(id) {
     }
 
     if (action === "cloud-save" && tab.sid) {
-      $("status").textContent = t("cloud_saving");
+      toast(t("cloud_saving"));
       try {
         const r = await fetch(`/api/cloud/sync/${encodeURIComponent(tab.sid)}${tokenQs()}`, { method: "POST" });
         const body = await r.json().catch(() => ({}));
-        if (r.status === 400) { $("status").textContent = t("cloud_not_connected"); return; }
+        if (r.status === 400) { toast(t("cloud_not_connected"), "#e57373"); return; }
         if (!r.ok) throw new Error(body.detail || t("cloud_save_err"));
-        $("status").textContent = t("cloud_saved").replace("{v}", body.version ?? "?");
+        toast(t("cloud_saved").replace("{v}", body.version ?? "?"), "#4caf50");
       } catch (err) {
-        $("status").textContent = err.message || t("cloud_save_err");
-      } finally {
-        setTimeout(() => {
-          const active = getActiveTab();
-          if (active && $("status").textContent !== t("cloud_saving")) {
-            $("status").textContent = active.statusKey ? t(active.statusKey) : "";
-            if (active.statusColor) $("status").style.color = active.statusColor;
-          }
-        }, 3000);
+        toast(err.message || t("cloud_save_err"), "#e57373");
       }
     }
 
     if (action === "rename") {
       startRenameTab(tabId);
+    }
+
+    if (action === "delete") {
+      const confirmed = await showConfirm(t("confirm_delete"));
+      if (!confirmed) return;
+      const sid = tab.sid;
+      closeTab(tabId);
+      if (sid) {
+        await fetch(`/api/sessions/${encodeURIComponent(sid)}${tokenQs()}`, { method: "DELETE" }).catch(() => {});
+        renderHistory();
+      }
     }
   });
 
@@ -1883,33 +1981,20 @@ $("cloud-logout").onclick = async () => {
   await loadCloudStatus();
 };
 
-// ---------- Cloud Save Button ----------
-$("btn-cloud-save").onclick = async () => {
-  const tab = getActiveTab();
-  if (!tab || !tab.sid) return;
-  const btn = $("btn-cloud-save");
-  btn.setAttribute("data-busy", "1");
-  $("status").textContent = t("cloud_saving");
-  try {
-    const r = await fetch(`/api/cloud/sync/${encodeURIComponent(tab.sid)}${tokenQs()}`,
-                          { method: "POST" });
-    const body = await r.json().catch(() => ({}));
-    if (r.status === 400) { $("status").textContent = t("cloud_not_connected"); return; }
-    if (!r.ok) throw new Error(body.detail || t("cloud_save_err"));
-    $("status").textContent = t("cloud_saved").replace("{v}", body.version ?? "?");
-  } catch (e) {
-    $("status").textContent = e.message || t("cloud_save_err");
-  } finally {
-    btn.removeAttribute("data-busy");
-    setTimeout(() => {
-      const active = getActiveTab();
-      if (active && $("status").textContent !== t("cloud_saving")) {
-        $("status").textContent = active.statusKey ? t(active.statusKey) : "";
-        if (active.statusColor) $("status").style.color = active.statusColor;
-      }
-    }, 3000);
+// ---------- Toast (transient bottom-center notice) ----------
+function toast(text, color) {
+  let el = $("toast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "toast";
+    document.body.appendChild(el);
   }
-};
+  el.textContent = text;
+  el.style.color = color || "";
+  el.classList.add("show");
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => el.classList.remove("show"), 2500);
+}
 
 // ---------- Resize ----------
 window.addEventListener("resize", () => {
@@ -1929,6 +2014,7 @@ document.addEventListener("click", closeAllMenus);
 // ---------- Top bar launchers ----------
 $("open-config").onclick = () => openViewTab("config");
 $("open-ext").onclick = () => openViewTab("extaccess");
+$("files").onclick = () => openViewTab("files");
 
 // ---------- Language Switcher ----------
 document.querySelectorAll(".lb[data-lang]").forEach((btn) => {
@@ -2037,7 +2123,7 @@ $("etm-refresh").onclick = async () => {
   $("etm-err").textContent = "";
   try {
     const r = await fetch(`/api/frp/token/refresh${tokenQs()}`, { method: "POST" }).then((x) => x.json());
-    token = r.token;                       // 同步前端访问 token，避免后续请求被踢
+    token = r.token;                       // sync frontend access token so later requests aren't rejected
     $("etm-token").value = r.token;
     _etmQR("etm-token-qr", r.token);       // token QR only; URLs never carry the token
     $("etm-err").textContent = t("etm_saved");
