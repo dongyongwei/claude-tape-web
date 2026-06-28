@@ -11,6 +11,10 @@ const TRANSLATIONS = {
     gate_err_load:    "Load failed",
     sec_new_session:  "New Session",
     sec_history:      "History",
+    sec_files:        "Files",
+    sec_files_sub:    "Browse and manage files",
+    sec_config:       "Config",
+    sec_config_sub:   "Models, paths, and cloud settings",
     sec_quick_actions:"Quick Actions",
     btn_start:        "Start",
     btn_config:       "⚙ Config",
@@ -193,6 +197,10 @@ const TRANSLATIONS = {
     gate_err_load:    "加载失败",
     sec_new_session:  "新建会话",
     sec_history:      "历史记录",
+    sec_files:        "文件管理",
+    sec_files_sub:    "浏览和管理文件",
+    sec_config:       "配置",
+    sec_config_sub:   "模型、路径和云端设置",
     sec_quick_actions:"常用功能",
     btn_start:        "开始",
     btn_config:       "⚙ 配置",
@@ -1737,7 +1745,6 @@ function collectConfig() {
   };
 }
 
-$("config").onclick = () => openViewTab("config");
 $("cfg-add-model").onclick = () => {
   const tbody = $("cfg-models").querySelector("tbody");
   if (tbody) { tbody.insertAdjacentHTML("beforeend", modelRowHtml({ id: nextModelId() })); bindModelDel(); }
@@ -2068,7 +2075,10 @@ document.addEventListener("click", (e) => {
 // ---------- Top bar launchers ----------
 $("open-config").onclick = () => openViewTab("config");
 $("open-ext").onclick = () => openViewTab("extaccess");
-$("files").onclick = () => openViewTab("files");
+
+// ---------- Home nav cards ----------
+$("nav-files").onclick = () => openViewTab("files");
+$("nav-config").onclick = () => openViewTab("config");
 
 // ---------- Language Switcher ----------
 document.querySelectorAll(".lb[data-lang]").forEach((btn) => {

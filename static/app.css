@@ -130,6 +130,18 @@ body::after {
 }
 .new-row { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
 
+/* Home nav cards (Files, Config) */
+.home-nav-card {
+  display: flex; align-items: center; gap: 10px;
+  cursor: pointer; transition: background .13s, border-color .13s;
+}
+.home-nav-card:hover { background: var(--s2); border-color: var(--accent); }
+.home-nav-icon { font-size: 20px; flex-shrink: 0; width: 32px; text-align: center; }
+.home-nav-text { flex: 1; min-width: 0; }
+.home-nav-title { font-size: 13px; font-weight: 500; color: var(--t1); }
+.home-nav-sub { font-size: 11px; color: var(--t3); margin-top: 1px; }
+.home-nav-arrow { font-size: 16px; color: var(--t3); flex-shrink: 0; }
+
 /* Quick Actions card */
 .quick-actions-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .quick-action-btn {
