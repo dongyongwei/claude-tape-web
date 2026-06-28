@@ -66,10 +66,16 @@
       background:var(--coral);color:#fff;font-size:10px;font-weight:700;border-radius:9px;
       display:flex;align-items:center;justify-content:center;border:2px solid var(--bg);}
     #bar .spacer{flex:1;}
-    #bar .ctx{font-size:13px;color:var(--t2);max-width:150px;text-align:right;line-height:1.25;}
-    #bar .ctx b{display:block;color:var(--t1);font-size:14px;font-weight:600;
+    #bar .ctx{display:flex;align-items:center;gap:6px;background:none;border:none;
+      max-width:180px;line-height:1.25;padding:4px 2px;cursor:default;}
+    #bar .ctx.tappable{cursor:pointer;}
+    #bar .ctx.tappable:active{opacity:.6;}
+    #bar .ctx .ctx-txt{min-width:0;flex:1;text-align:right;}
+    #bar .ctx .ctx-caret{flex:none;font-size:10px;color:var(--t3);display:none;}
+    #bar .ctx.tappable .ctx-caret{display:block;}
+    #bar .ctx #ctx-name{display:block;color:var(--t1);font-size:14px;font-weight:600;
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;}
-    #bar .ctx span{display:block;font-size:11px;color:var(--t3);
+    #bar .ctx #ctx-sub{display:block;font-size:11px;color:var(--t3);
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;}
 
     #bodyc{flex:1;min-height:0;position:relative;overflow:hidden;}
@@ -130,7 +136,7 @@
       border-radius:var(--rxs);padding:6px 7px;font-size:12px;outline:none;appearance:auto;}
     .hsess .note{flex:1;min-width:0;background:var(--s2);color:var(--t2);border:1px solid var(--bm);
       border-radius:var(--rxs);padding:6px 9px;font-size:12px;outline:none;resize:none;overflow:hidden;
-      line-height:1.4;font-family:inherit;}
+      line-height:1.4;font-family:inherit;min-height:calc(1em * 1.4 + 12px);}
     .hsess .note:focus,.hsess .msel:focus{border-color:var(--coral);}
     .empty{color:var(--t3);font-size:14px;text-align:center;padding:30px 0;}
     #history.select{padding-bottom:152px;}
@@ -277,6 +283,17 @@
       transform-origin:top left;transform:scale(.92);opacity:0;pointer-events:none;
       transition:transform .16s cubic-bezier(.32,.72,0,1),opacity .16s;}
     .menu.on{transform:scale(1);opacity:1;pointer-events:auto;}
+    /* right-anchored variant (top-bar session context menu) */
+    .menu.menu-r{left:auto;right:12px;width:248px;transform-origin:top right;}
+    .sctx-status{display:flex;align-items:center;gap:8px;padding:9px 12px;font-size:13px;}
+    .sctx-status .sctx-dot{width:8px;height:8px;border-radius:50%;flex:none;}
+    .sctx-status .sctx-stl{color:var(--t2);}
+    .sctx-status .sctx-stv{margin-left:auto;font-weight:600;}
+    .sctx-model{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:13px;color:var(--t2);}
+    .sctx-model>span{flex:none;}
+    .sctx-model select{flex:1;min-width:0;background:var(--s2);color:var(--t1);border:1px solid var(--bm);
+      border-radius:var(--rxs);padding:7px 8px;font-size:13px;outline:none;appearance:auto;}
+    .sctx-model select:focus{border-color:var(--blue);}
     .mi{display:flex;align-items:center;gap:11px;width:100%;padding:11px 12px;background:none;
       border:none;border-radius:9px;font-size:15px;color:var(--t1);cursor:pointer;text-align:left;}
     .mi:active{background:var(--s2);}
@@ -380,6 +397,56 @@
       border-radius:var(--rsm);padding:12px;font-size:15px;cursor:pointer;}
     .picker-ok{flex:1;background:var(--coral);color:#fff;border:none;border-radius:var(--rsm);
       padding:12px;font-size:15px;font-weight:500;cursor:pointer;}
+
+    /* ---------- File manager ---------- */
+    #v-files .fm{max-width:560px;margin:0 auto;padding:14px 14px calc(30px + var(--safe-b));}
+    .fm-bar,.fm-bar2,.fm-bar3{display:flex;gap:8px;margin-bottom:10px;}
+    .fm-drive{flex:1;min-width:0;background:var(--s1);color:var(--t1);border:1px solid var(--bm);
+      border-radius:var(--rsm);padding:10px;font-size:14px;outline:none;appearance:auto;}
+    .fm-path{flex:1;min-width:0;background:var(--s1);color:var(--t1);border:1px solid var(--bm);
+      border-radius:var(--rsm);padding:10px;font-size:13px;outline:none;
+      font-family:"SF Mono",Consolas,monospace;}
+    .fm-path:focus{border-color:var(--blue);}
+    .fm-btn{flex:none;background:var(--s1);color:var(--t2);border:1px solid var(--bm);
+      border-radius:var(--rsm);padding:10px 14px;font-size:14px;cursor:pointer;}
+    .fm-btn:active{background:var(--s3);}
+    .fm-bar3 .fm-btn{flex:1;}
+    .fm-err{color:var(--red);font-size:12.5px;margin-bottom:8px;min-height:0;word-break:break-all;}
+    .fm-list{display:flex;flex-direction:column;gap:8px;}
+    .fm-row{display:flex;align-items:center;gap:11px;background:var(--s1);border-radius:var(--r);
+      box-shadow:var(--card-shadow);padding:11px 12px;}
+    .fm-row .fm-ic{flex:none;font-size:20px;line-height:1;}
+    .fm-row .fm-meta{flex:1;min-width:0;cursor:pointer;}
+    .fm-row .fm-nm{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .fm-row .fm-sub{font-size:11.5px;color:var(--t3);margin-top:2px;}
+    .fm-row .fm-acts{flex:none;display:flex;gap:5px;}
+    .fm-act{width:34px;height:34px;flex:none;display:flex;align-items:center;justify-content:center;
+      background:var(--s2);color:var(--t2);border:1px solid var(--b);border-radius:var(--rxs);
+      font-size:14px;cursor:pointer;}
+    .fm-act:active{background:var(--s3);}
+    .fm-act-del{color:var(--red);border-color:rgba(255,59,48,.2);}
+    .fm-empty{text-align:center;color:var(--t3);font-size:14px;padding:30px 0;}
+
+    /* preview overlay — slides up over the whole screen */
+    .fm-pv{position:fixed;inset:0;z-index:200;background:var(--bg);display:flex;flex-direction:column;
+      transform:translateY(100%);transition:transform .26s cubic-bezier(.32,.72,0,1);}
+    .fm-pv.on{transform:translateY(0);}
+    .fm-pv-head{flex:none;display:flex;align-items:center;gap:8px;
+      padding:calc(10px + var(--safe-t)) 12px 10px;border-bottom:1px solid var(--b);background:var(--s1);}
+    .fm-pv-back{flex:none;background:none;border:none;font-size:24px;line-height:1;
+      color:var(--blue);cursor:pointer;padding:0 4px;}
+    .fm-pv-name{flex:1;min-width:0;font-size:15px;font-weight:600;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .fm-pv-head .fm-btn{padding:8px 12px;font-size:13px;}
+    .fm-save-msg{font-size:12px;color:var(--green);align-self:center;white-space:nowrap;}
+    .fm-editor{flex:1;width:100%;border:none;background:#1e1e1e;color:#eaeaea;
+      font-family:Consolas,monospace;font-size:13px;line-height:1.5;padding:12px;outline:none;resize:none;}
+    .fm-frame{flex:1;width:100%;border:none;background:#fff;}
+    .fm-pv-img{flex:1;overflow:auto;padding:14px;text-align:center;background:var(--s2);}
+    .fm-pv-img img{max-width:100%;height:auto;border-radius:var(--rxs);box-shadow:var(--card-shadow);}
+    .fm-pv-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+      gap:18px;color:var(--t3);font-size:14px;padding:30px;text-align:center;}
+    .fm-pv-empty .fm-btn{background:var(--blue);color:#fff;border:none;padding:12px 24px;font-size:15px;}
   </style>
 </head>
 <body>
@@ -418,7 +485,10 @@
       <button id="btn-menu" class="icon-btn" aria-label="Menu">☰</button>
       <button id="btn-grid" class="icon-btn grid-btn" aria-label="Sessions">⊞<span class="badge hidden" id="tab-badge">0</span></button>
       <span class="spacer"></span>
-      <span class="ctx"><b id="ctx-name">claude·tape</b><span id="ctx-sub"></span></span>
+      <button id="btn-ctx" class="ctx" aria-label="Session menu">
+        <span class="ctx-txt"><b id="ctx-name">claude·tape</b><span id="ctx-sub"></span></span>
+        <span class="ctx-caret">▾</span>
+      </button>
     </div>
 
     <div id="bodyc">
@@ -592,6 +662,30 @@
           <div id="etm-err" class="etm-err"></div>
         </div>
       </div>
+
+      <!-- FILES -->
+      <div class="view" id="v-files">
+        <div class="fm">
+          <div class="fm-bar">
+            <select id="fm-drive" class="fm-drive" data-i18n-title="fm_drives" title="Drives"></select>
+            <button id="fm-up" class="fm-btn" data-i18n-title="fm_up" title="Up">⬆</button>
+            <button id="fm-refresh" class="fm-btn" data-i18n-title="fm_refresh" title="Refresh">↻</button>
+          </div>
+          <div class="fm-bar2">
+            <input id="fm-path" class="fm-path" type="text" spellcheck="false" />
+            <button id="fm-go" class="fm-btn" data-i18n="fm_go">Go</button>
+          </div>
+          <div class="fm-bar3">
+            <button id="fm-upload" class="fm-btn" data-i18n="fm_upload">Upload</button>
+            <button id="fm-mkdir" class="fm-btn" data-i18n="fm_mkdir">New folder</button>
+            <input type="file" id="fm-upload-input" style="display:none" />
+          </div>
+          <div id="fm-err" class="fm-err"></div>
+          <div id="fm-list" class="fm-list"></div>
+        </div>
+        <!-- preview sheet (filled dynamically) -->
+        <div id="fm-pv" class="fm-pv"></div>
+      </div>
     </div>
 
     <!-- batch bar (select mode) -->
@@ -619,7 +713,7 @@
     <button class="mi" id="m-home"><span class="mic">⌂</span><span data-i18n="tab_home">Home</span></button>
     <button class="mi" id="m-config"><span class="mic">⚙</span><span data-i18n="cfg_title">Config</span></button>
     <button class="mi" id="m-ext"><span class="mic">🌐</span><span data-i18n="etm_title">External Access</span></button>
-    <button class="mi" id="m-cloud-save"><span class="mic">☁︎</span><span data-i18n="cloud_save_title">Save to cloud</span></button>
+    <button class="mi" id="m-files"><span class="mic">📁</span><span data-i18n="tab_files">Files</span></button>
     <div class="msep"></div>
     <div class="mlang"><span data-i18n="menu_lang">Language</span>
       <button class="lb" data-lang="zh">中</button>
@@ -627,6 +721,9 @@
     <div class="msep"></div>
     <button class="mi danger" id="m-logout"><span class="mic">⎋</span><span data-i18n="btn_logout">Logout</span></button>
   </div>
+
+  <!-- ⋮ Session context menu (top-right, current session) -->
+  <div class="menu menu-r" id="sctx"></div>
 
   <!-- ⊞ Switcher -->
   <div class="sw" id="sw">
@@ -648,5 +745,7 @@
   <script src="/static/vendor/addon-fit.js"></script>
   <script src="/static/vendor/qrcode.min.js"></script>
   <script src="/static/mobile.js"></script>
+  <script src="/static/vendor/marked.min.js"></script>
+  <script src="/static/mobile-files.js"></script>
 </body>
 </html>

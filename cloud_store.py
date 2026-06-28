@@ -4,7 +4,7 @@ from pathlib import Path
 
 _lock = threading.Lock()
 
-DEFAULT_BASE_URL = ""
+DEFAULT_BASE_URL = ""  # 默认留空，由前端 connect 时校验非空
 # 与 config.json / token 同目录，升级保留
 CLOUD_FILE = Path.home() / ".agent_win_serve" / "cloud.json"
 

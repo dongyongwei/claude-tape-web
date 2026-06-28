@@ -11,8 +11,9 @@ const TRANSLATIONS = {
     gate_err_load:    "Load failed",
     sec_new_session:  "New Session",
     sec_history:      "History",
+    sec_quick_actions:"Quick Actions",
     btn_start:        "Start",
-    btn_config:       "Config",
+    btn_config:       "⚙ Config",
     btn_logout:       "Logout",
     logout_confirm:   "Log out and clear the saved token from this browser?",
     btn_extaccess:     "🌐 External",
@@ -162,11 +163,14 @@ const TRANSLATIONS = {
     cloud_cancel:      "Cancel",
     cloud_connected_ok:"Connected to cloud",
     cloud_err:         "Cloud error",
+    cloud_need_url:    "Enter the cloud server URL first",
     cloud_save_title:   "Save to cloud",
     cloud_saving:       "Saving to cloud…",
     cloud_saved:        "Saved to cloud (v{v})",
     cloud_save_err:     "Save failed",
     cloud_not_connected:"Connect cloud in Config first",
+    cloud_save_before_switch:"Save session to cloud before switching model?",
+    cloud_save_before_ok:  "Save & Switch",
     ctx_refresh:       "Refresh tab",
     ctx_cloud_save:    "Save to cloud",
     sel_toggle:         "Select",
@@ -189,8 +193,9 @@ const TRANSLATIONS = {
     gate_err_load:    "加载失败",
     sec_new_session:  "新建会话",
     sec_history:      "历史记录",
+    sec_quick_actions:"常用功能",
     btn_start:        "开始",
-    btn_config:       "配置",
+    btn_config:       "⚙ 配置",
     btn_logout:       "退出",
     logout_confirm:   "退出登录并清除本浏览器已保存的访问令牌?",
     btn_extaccess:     "🌐 外网",
@@ -340,11 +345,14 @@ const TRANSLATIONS = {
     cloud_cancel:      "取消",
     cloud_connected_ok:"已连接云端",
     cloud_err:         "云端错误",
+    cloud_need_url:    "请先填写云端服务器地址",
     cloud_save_title:   "保存到云端",
     cloud_saving:       "正在保存到云端…",
     cloud_saved:        "已保存到云端（v{v}）",
     cloud_save_err:     "保存失败",
     cloud_not_connected:"请先在配置里连接云端",
+    cloud_save_before_switch:"切换模型前保存会话到云端？",
+    cloud_save_before_ok:  "保存并切换",
     ctx_refresh:       "刷新标签页",
     ctx_cloud_save:    "保存到云端",
     sel_toggle:         "选择",
@@ -823,6 +831,7 @@ async function renderHistory() {
       // the model it was spawned with. To apply a freshly-picked model we must kill
       // it first so the resume path respawns Claude with the new --model.
       if (b.dataset.status === "active" && modelChanged) {
+        await promptCloudSaveBeforeSwitch(sid);
         await fetch(`/api/sessions/${encodeURIComponent(sid)}/close${tokenQs()}`, { method: "POST" }).catch(() => {});
       }
       connect({
@@ -872,6 +881,8 @@ async function renderHistory() {
     };
     inp.addEventListener("input", autoGrow);
     autoGrow();
+    // re-measure when width changes (window resize, group toggle, etc.)
+    new ResizeObserver(autoGrow).observe(inp);
 
     ok.addEventListener("mousedown", (e) => e.preventDefault());
     cancelBtn.addEventListener("mousedown", (e) => e.preventDefault());
@@ -1303,6 +1314,16 @@ function startRenameTab(id) {
           <span class="ctx-status-val" style="color:${esc(stColor)}">${t(tab.statusKey || "not_connected")}</span>
         </div>`;
 
+      // Working directory row
+      const cwd = tab.connectOpts?.cwd || "";
+      if (cwd) {
+        html += `<div class="tab-ctx-sep"></div>
+          <div class="tab-ctx-cwd-row" title="${esc(cwd)}">
+            <span class="ctx-icon">📁</span>
+            <span class="ctx-cwd-path">${esc(cwd)}</span>
+          </div>`;
+      }
+
       // Model select row (inline in context menu)
       try {
         const models = await fetch(`/api/models${tokenQs()}`).then((r) => r.json());
@@ -1414,6 +1435,7 @@ function startRenameTab(id) {
     const newName = sel.options[sel.selectedIndex].text;
     const prevModel = sel.dataset.prevModel;
     closeAllMenus();
+    if (tab.sid && newId !== prevModel) await promptCloudSaveBeforeSwitch(tab.sid);
     try {
       if (tab.sid) await patchSession(tab.sid, { model_id: newId, model_name: newName });
       tab.model_id = newId;
@@ -1477,7 +1499,8 @@ function connectTab(tab, opts) {
   tab.ws = token ? new WebSocket(wsUrl, ["bearer", token]) : new WebSocket(wsUrl);
   tab.ws.binaryType = "arraybuffer";
 
-  tab.ws.onopen = () => {
+  tab.ws.onopen = (ev) => {
+    if (ev.target !== tab.ws) return;
     tab.reconnectCount = 0;
     setTabStatus(tab, opts.resume ? "connected_resume" : "connected", "#4caf50");
     if (!tab.panel.classList.contains("hidden")) tab.fitAddon.fit();
@@ -1493,6 +1516,8 @@ function connectTab(tab, opts) {
   };
 
   tab.ws.onmessage = (ev) => {
+    // Ignore messages from a stale (previous) WS.
+    if (ev.target !== tab.ws) return;
     if (typeof ev.data === "string") {
       const msg = JSON.parse(ev.data);
       if (msg.type === "spawned") {
@@ -1510,6 +1535,8 @@ function connectTab(tab, opts) {
 
   tab.ws.onclose = (ev) => {
     clearInterval(tab.heartbeat);
+    // Ignore close from a stale (previous) WS — only the current WS matters.
+    if (ev.target !== tab.ws) return;
     if (ev.code === 4003) {
       setTabStatus(tab, "token_invalid", "#e57373");
       return;
@@ -1927,7 +1954,8 @@ function stopCloudPoll() {
 $("cloud-connect").onclick = async () => {
   // Save possibly-changed base_url first
   const url = $("cloud-base-url").value.trim();
-  if (url) await fetch(`/api/cloud/base-url${tokenQs()}`, {
+  if (!url) { cfgStatus(t("cloud_need_url"), "#e57373"); return; }
+  await fetch(`/api/cloud/base-url${tokenQs()}`, {
     method: "PUT", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ base_url: url }),
   }).catch(() => {});
@@ -1981,6 +2009,27 @@ $("cloud-logout").onclick = async () => {
   await loadCloudStatus();
 };
 
+/** Check if cloud is connected; if so, ask whether to save before model switch.
+ *  Returns true if save succeeded or user declined; false if user cancelled the whole switch. */
+async function promptCloudSaveBeforeSwitch(sid) {
+  if (!sid) return true;
+  try {
+    const s = await fetch(`/api/cloud/status${tokenQs()}`).then((r) => r.json());
+    if (!s.bound) return true;   // cloud not connected → skip prompt
+  } catch (_) { return true; }   // can't check → skip prompt
+  const save = await showConfirm(t("cloud_save_before_switch"), { okLabel: t("cloud_save_before_ok") });
+  if (!save) return true;        // user declined save → proceed with switch
+  toast(t("cloud_saving"));
+  try {
+    const r = await fetch(`/api/cloud/sync/${encodeURIComponent(sid)}${tokenQs()}`, { method: "POST" });
+    const body = await r.json().catch(() => ({}));
+    if (r.status === 400) { toast(t("cloud_not_connected"), "#e57373"); }
+    else if (!r.ok) { toast(body.detail || t("cloud_save_err"), "#e57373"); }
+    else { toast(t("cloud_saved").replace("{v}", body.version ?? "?"), "#4caf50"); }
+  } catch (e) { toast(e.message || t("cloud_save_err"), "#e57373"); }
+  return true; // always proceed with switch (save succeeded or failed gracefully)
+}
+
 // ---------- Toast (transient bottom-center notice) ----------
 function toast(text, color) {
   let el = $("toast");
@@ -2009,7 +2058,12 @@ function closeAllMenus() {
   document.querySelectorAll(".more-drop").forEach((d) => d.classList.add("hidden"));
   $("tab-ctx-menu").classList.add("hidden");
 }
-document.addEventListener("click", closeAllMenus);
+document.addEventListener("click", (e) => {
+  // Clicks inside a menu (e.g. opening the model <select> dropdown) must not
+  // trigger the global close — menu items close the menu themselves.
+  if (e.target.closest && e.target.closest("#tab-ctx-menu, .more-drop")) return;
+  closeAllMenus();
+});
 
 // ---------- Top bar launchers ----------
 $("open-config").onclick = () => openViewTab("config");

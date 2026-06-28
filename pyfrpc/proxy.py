@@ -64,6 +64,12 @@ def handle_work_connection(cfg, run_id, proxies, log):
             sock.close()
             return
 
+        # During bridging the tunnel must allow arbitrarily long idle periods
+        # (e.g. an interactive SSH session with no output). create_connection
+        # leaves dial_timeout on the socket, so clear it -- otherwise local.recv()
+        # raises socket.timeout while idle and tears the whole tunnel down. This
+        # mirrors the work socket, whose timeout is already cleared above.
+        local.settimeout(None)
         log.info("[%s] bridged to %s:%d", proxy_name, pconf.local_ip, pconf.local_port)
         _bridge(sock, local)
     except (EOFError, OSError, ValueError) as exc:

@@ -88,16 +88,23 @@
               <select id="model"></select>
               <select id="cwd"></select>
               <button id="start" data-i18n="btn_start">Start</button>
-              <button id="config" data-i18n="btn_config">Config</button>
-              <button id="extaccess" data-i18n="btn_extaccess">🌐 External</button>
-              <button id="files" data-i18n="btn_files">📁 Files</button>
             </div>
           </div>
           <div class="sec-label sec-label-row">
             <span data-i18n="sec_history">History</span>
             <button id="sel-toggle" class="sel-toggle-btn" data-i18n="sel_toggle">Select</button>
           </div>
-          <div id="history"></div>
+          <div class="home-card">
+            <div id="history"></div>
+          </div>
+          <div class="sec-label" data-i18n="sec_quick_actions">Quick Actions</div>
+          <div class="home-card">
+            <div class="quick-actions-row">
+              <button id="config" class="quick-action-btn" data-i18n="btn_config">Config</button>
+              <button id="extaccess" class="quick-action-btn" data-i18n="btn_extaccess">External</button>
+              <button id="files" class="quick-action-btn" data-i18n="btn_files">Files</button>
+            </div>
+          </div>
         </div>
         <div id="batch-bar" class="batch-bar hidden">
           <div class="batch-bar-inner">

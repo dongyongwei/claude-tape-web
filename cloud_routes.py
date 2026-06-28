@@ -28,7 +28,7 @@ def make_cloud_router(get_runtime, store=None):
     def status():
         base = cloud_store.get_base_url()
         tok = cloud_store.get_token()
-        bound = bool(tok) and cloud_client.verify_token(base, tok)
+        bound = bool(tok) and bool(base) and cloud_client.verify_token(base, tok)
         return {"configured": bool(tok), "bound": bound, "base_url": base}
 
     @router.put("/base-url", dependencies=[Depends(require_token)])
@@ -42,6 +42,8 @@ def make_cloud_router(get_runtime, store=None):
     @router.post("/device/start", dependencies=[Depends(require_token)])
     def device_start():
         base = cloud_store.get_base_url()
+        if not base:
+            raise HTTPException(status_code=400, detail="cloud server not configured")
         st, body = cloud_client.device_start(base)
         if st != 200:
             raise HTTPException(status_code=502, detail=body.get("detail", "cloud error"))

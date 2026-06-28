@@ -59,8 +59,11 @@ const TRANSLATIONS = {
     cloud_enter_code:"Confirm this code in your browser:", cloud_open_browser:"Open authorization page",
     cloud_waiting:"Waiting for confirmation…", cloud_cancel:"Cancel",
     cloud_connected_ok:"Connected to cloud", cloud_err:"Cloud error",
+    cloud_need_url:"Enter the cloud server URL first",
     cloud_save_title:"Save to cloud", cloud_saving:"Saving to cloud…", cloud_saved:"Saved to cloud (v{v})",
     cloud_save_err:"Save failed", cloud_not_connected:"Connect cloud in Config first",
+    cloud_save_before_switch:"Save session to cloud before switching model?",
+    cloud_save_before_ok:"Save & Switch",
     sel_toggle:"Select", sel_cancel:"Cancel", sel_all:"Select all", sel_none:"Deselect all",
     sel_count:"{n} selected", sel_apply_model:"Apply",
     sel_confirm_delete:"Delete {n} selected sessions?", sel_confirm_activate:"Open {n} sessions?",
@@ -68,6 +71,16 @@ const TRANSLATIONS = {
     menu_lang:"Language", sw_sessions:"Sessions", sw_new:"New", sw_hist:"From history",
     sw_open:"Open", sw_back:"‹ Back", sw_resume:"Resume from history",
     term_empty_hint:"No open session. Tap ⊞ to start or resume one.", no_active_session:"No active session",
+    ctx_refresh:"Reconnect", ctx_cloud_save:"Save to cloud",
+    tab_rename:"Rename", tab_status:"Status", tab_model:"Model",
+    tab_files:"Files",
+    fm_up:"Up", fm_refresh:"Refresh", fm_go:"Go", fm_upload:"Upload", fm_mkdir:"New folder",
+    fm_download:"Download", fm_rename:"Rename", fm_delete:"Delete",
+    fm_save:"Save", fm_saved:"Saved", fm_render:"Preview", fm_source:"Source",
+    fm_empty:"Empty folder", fm_pick:"Select a file to preview",
+    fm_binary:"Cannot preview this file type — download it instead.", fm_drives:"Drives",
+    fm_confirm_delete:"Delete \"{0}\"? This cannot be undone.",
+    fm_prompt_mkdir:"New folder name:", fm_prompt_rename:"New name:", fm_load_fail:"Failed to load",
   },
   zh: {
     gate_sub:"请输入服务端访问令牌", gate_placeholder:"访问令牌",
@@ -121,8 +134,11 @@ const TRANSLATIONS = {
     cloud_enter_code:"请在浏览器确认此验证码：", cloud_open_browser:"打开授权页面",
     cloud_waiting:"等待确认中…", cloud_cancel:"取消",
     cloud_connected_ok:"已连接云端", cloud_err:"云端错误",
+    cloud_need_url:"请先填写云端服务器地址",
     cloud_save_title:"保存到云端", cloud_saving:"正在保存到云端…", cloud_saved:"已保存到云端（v{v}）",
     cloud_save_err:"保存失败", cloud_not_connected:"请先在配置里连接云端",
+    cloud_save_before_switch:"切换模型前保存会话到云端？",
+    cloud_save_before_ok:"保存并切换",
     sel_toggle:"选择", sel_cancel:"取消", sel_all:"全选", sel_none:"取消全选",
     sel_count:"已选 {n} 项", sel_apply_model:"应用",
     sel_confirm_delete:"删除选中的 {n} 个会话？", sel_confirm_activate:"打开选中的 {n} 个会话？",
@@ -130,6 +146,16 @@ const TRANSLATIONS = {
     menu_lang:"语言", sw_sessions:"会话", sw_new:"新建", sw_hist:"历史新建",
     sw_open:"已打开", sw_back:"‹ 返回", sw_resume:"从历史恢复",
     term_empty_hint:"还没有打开的会话。点 ⊞ 新建或从历史恢复。", no_active_session:"无活动会话",
+    ctx_refresh:"重新连接", ctx_cloud_save:"保存到云端",
+    tab_rename:"重命名", tab_status:"状态", tab_model:"模型",
+    tab_files:"文件",
+    fm_up:"上一级", fm_refresh:"刷新", fm_go:"前往", fm_upload:"上传", fm_mkdir:"新建文件夹",
+    fm_download:"下载", fm_rename:"重命名", fm_delete:"删除",
+    fm_save:"保存", fm_saved:"已保存", fm_render:"预览", fm_source:"源码",
+    fm_empty:"空文件夹", fm_pick:"选择一个文件预览",
+    fm_binary:"无法预览此类型文件，请下载查看。", fm_drives:"驱动器",
+    fm_confirm_delete:"确定删除「{0}」？此操作不可恢复。",
+    fm_prompt_mkdir:"新文件夹名称：", fm_prompt_rename:"新名称：", fm_load_fail:"加载失败",
   },
 };
 
@@ -243,10 +269,16 @@ function showView(v) {
   if (_selectMode && v !== "home") setSelectMode(false);
   document.querySelectorAll(".view").forEach((el) => el.classList.remove("on"));
   $("v-" + (v === "config" ? "cfg" : v)).classList.add("on");
-  closeMenu(); closeSwitcher();
+  closeMenu(); closeSwitcher(); closeSctx();
   if (v === "term") { const s = getActive(); if (s) requestAnimationFrame(() => { s.fitAddon.fit(); s.terminal.focus(); }); }
   if (v === "config") showConfig().catch((e) => cfgStatus(e.message, "#e57373"));
   if (v === "ext") { $("etm-err").textContent = ""; _etmStatus().then((s) => { if (s && s.state === "connecting") _etmStartPoll(); }).catch((e) => { $("etm-err").textContent = e.message; }); }
+  if (v === "files") {
+    // First open lands on the active session's cwd, else the project dir picked on Home.
+    const s = getActive();
+    const dir = (s && s.connectOpts?.cwd) || $("cwd")?.value || "";
+    window.filesOpen?.(dir);
+  }
   updateCtx();
 }
 
@@ -258,9 +290,11 @@ function updateCtx() {
     subEl.textContent = s ? t(s.statusKey) : "";
     subEl.style.color = s ? (s.statusColor || "var(--t3)") : "var(--t3)";
   } else {
-    nameEl.textContent = { home: t("tab_home"), config: t("cfg_title"), ext: t("etm_title") }[_view] || "";
+    nameEl.textContent = { home: t("tab_home"), config: t("cfg_title"), ext: t("etm_title"), files: t("tab_files") }[_view] || "";
     subEl.textContent = ""; subEl.style.color = "var(--t3)";
   }
+  // caret + tappable only when a current session's context menu can be shown
+  $("btn-ctx").classList.toggle("tappable", _view === "term" && !!getActive());
 }
 
 // ---------- Multi-session model ----------
@@ -381,7 +415,8 @@ function connectSession(sess, opts) {
   sess.ws = token ? new WebSocket(wsUrl, ["bearer", token]) : new WebSocket(wsUrl);
   sess.ws.binaryType = "arraybuffer";
 
-  sess.ws.onopen = () => {
+  sess.ws.onopen = (ev) => {
+    if (ev.target !== sess.ws) return;
     sess.reconnectCount = 0;
     setSessStatus(sess, opts.resume ? "connected_resume" : "connected", "#4caf50");
     if (sess.panel.classList.contains("on")) sess.fitAddon.fit();
@@ -390,6 +425,8 @@ function connectSession(sess, opts) {
     sess.heartbeat = setInterval(() => sendTo(sess, { type: "ping" }), _HEARTBEAT_MS);
   };
   sess.ws.onmessage = (ev) => {
+    // Ignore messages from a stale (previous) WS.
+    if (ev.target !== sess.ws) return;
     if (typeof ev.data === "string") {
       const msg = JSON.parse(ev.data);
       if (msg.type === "spawned") { sess.sid = msg.sid; _saveSessions(); }
@@ -401,6 +438,8 @@ function connectSession(sess, opts) {
   };
   sess.ws.onclose = (ev) => {
     clearInterval(sess.heartbeat);
+    // Ignore close from a stale (previous) WS — only the current WS matters.
+    if (ev.target !== sess.ws) return;
     if (ev.code === 4003) { setSessStatus(sess, "token_invalid", "#e57373"); return; }
     if (sess.intentionalClose) { setSessStatus(sess, "disconnected", "#e57373"); return; }
     scheduleReconnect(sess);
@@ -582,6 +621,7 @@ async function renderHistory() {
       if (existing) { activateSession(existing.id); return; }   // already open → switch
       const modelChanged = b.dataset.model !== b.dataset.origModel;
       if (b.dataset.status === "active" && modelChanged) {
+        await promptCloudSaveBeforeSwitch(sid);
         await fetch(`/api/sessions/${encodeURIComponent(sid)}/close${tokenQs()}`, { method: "POST" }).catch(() => {});
       }
       startSession({ resume: sid, cwd: b.dataset.cwd || undefined, model_id: b.dataset.model || undefined, label: b.dataset.tag || undefined });
@@ -604,6 +644,7 @@ async function renderHistory() {
     const grow = () => { inp.style.height = "auto"; inp.style.height = inp.scrollHeight + "px"; };
     grow();
     inp.addEventListener("input", grow);
+    new ResizeObserver(grow).observe(inp);
     const save = async () => {
       const v = inp.value.trim();
       try { await patchSession(inp.dataset.sid, { tag: v }); inp.dataset.orig = v;
@@ -765,12 +806,12 @@ $("batch-delete").onclick = async () => {
 // ---------- ☰ Menu ----------
 function openMenu() { $("menu").classList.add("on"); $("scrim").classList.add("on"); }
 function closeMenu() { $("menu").classList.remove("on"); $("scrim").classList.remove("on"); }
-$("btn-menu").onclick = () => { if ($("menu").classList.contains("on")) closeMenu(); else { closeSwitcher(); openMenu(); } };
-$("scrim").onclick = () => { closeMenu(); };
+$("btn-menu").onclick = () => { if ($("menu").classList.contains("on")) closeMenu(); else { closeSwitcher(); closeSctx(); openMenu(); } };
+$("scrim").onclick = () => { closeMenu(); closeSctx(); };
 $("m-home").onclick = () => showView("home");
 $("m-config").onclick = () => showView("config");
 $("m-ext").onclick = () => showView("ext");
-$("m-cloud-save").onclick = () => { closeMenu(); cloudSaveActive(); };
+$("m-files").onclick = () => showView("files");
 $("m-logout").onclick = async () => {
   closeMenu();
   if (!(await showConfirm(t("logout_confirm")))) return;
@@ -781,8 +822,129 @@ $("m-logout").onclick = async () => {
 };
 document.querySelectorAll(".menu .lb[data-lang]").forEach((b) => b.onclick = () => setLang(b.dataset.lang));
 
+// ---------- ⋮ Session context menu (top-right, current session) ----------
+// Ports the desktop tab right-click menu (reconnect / status / model / cloud-save
+// / rename / delete) onto mobile, anchored to the top-bar session label.
+function closeSctx() {
+  $("sctx").classList.remove("on");
+  if (!$("menu").classList.contains("on")) $("scrim").classList.remove("on");
+}
+function openSctx() {
+  const s = getActive();
+  if (!s) return;
+  closeMenu(); closeSwitcher();
+  $("sctx").innerHTML = buildSctx(s);
+  $("sctx").querySelectorAll(".mi").forEach((b) => b.onclick = () => sctxAction(b.dataset.act, s));
+  const sel = $("sctx-model");
+  if (sel) sel.onchange = () => sctxChangeModel(s, sel);
+  $("sctx").classList.add("on"); $("scrim").classList.add("on");
+}
+$("btn-ctx").onclick = () => {
+  if ($("sctx").classList.contains("on")) { closeSctx(); return; }
+  if (_view !== "term" || !getActive()) return;   // only for an open session
+  openSctx();
+};
+
+function buildSctx(s) {
+  const stColor = s.statusColor || "var(--t3)";
+  const modelOpts = _allModels().map((m) =>
+    `<option value="${esc(m.id)}"${m.id === (s.model_id || "") ? " selected" : ""}>${esc(m.name)}</option>`).join("");
+  let html = `<button class="mi" data-act="refresh"><span class="mic">↻</span><span>${esc(t("ctx_refresh"))}</span></button>
+    <div class="msep"></div>
+    <div class="sctx-status">
+      <span class="sctx-dot" style="background:${esc(stColor)}"></span>
+      <span class="sctx-stl">${esc(t("tab_status"))}</span>
+      <span class="sctx-stv" style="color:${esc(stColor)}">${esc(t(s.statusKey || "not_connected"))}</span>
+    </div>
+    <div class="msep"></div>
+    <div class="sctx-model">
+      <span>${esc(t("tab_model"))}</span>
+      <select id="sctx-model" data-prev="${esc(s.model_id || "")}">${modelOpts}</select>
+    </div>`;
+  if (s.sid) html += `<div class="msep"></div>
+    <button class="mi" data-act="cloud-save"><span class="mic">☁︎</span><span>${esc(t("ctx_cloud_save"))}</span></button>`;
+  html += `<button class="mi" data-act="rename"><span class="mic">✏</span><span>${esc(t("tab_rename"))}</span></button>
+    <div class="msep"></div>
+    <button class="mi danger" data-act="delete"><span class="mic">🗑</span><span>${esc(t("sess_delete"))}</span></button>`;
+  return html;
+}
+
+async function sctxAction(act, s) {
+  closeSctx();
+  if (!_sessions.includes(s)) return;
+  if (act === "refresh") { reconnectSession(s); return; }
+  if (act === "cloud-save") { cloudSaveActive(); return; }
+  if (act === "rename") {
+    const v = await showRename(s.label);
+    if (v == null) return;
+    const newLabel = v.trim() || s.label;
+    if (newLabel !== s.label) {
+      s.label = newLabel;
+      if (s.sid) patchSession(s.sid, { tag: newLabel }).catch(() => {});
+      updateCtx(); _saveSessions();
+    }
+    return;
+  }
+  if (act === "delete") {
+    if (!(await showConfirm(t("confirm_delete")))) return;
+    const sid = s.sid;
+    closeSession(s.id);
+    if (sid) await fetch(`/api/sessions/${encodeURIComponent(sid)}${tokenQs()}`, { method: "DELETE" }).catch(() => {});
+    if (_view === "home") renderHistory();
+  }
+}
+
+// Close + resume the session over a fresh WS (mirrors desktop "Refresh tab").
+function reconnectSession(s) {
+  if (s.sid) fetch(`/api/sessions/${encodeURIComponent(s.sid)}/close${tokenQs()}`, { method: "POST" }).catch(() => {});
+  s.intentionalClose = true;
+  clearTimeout(s.reconnectTimer);
+  clearInterval(s.heartbeat);
+  if (s.ws) { try { s.ws.close(); } catch (_) {} }
+  s.terminal.clear();
+  connectSession(s, { ...s.connectOpts, resume: s.sid, model_id: s.model_id });
+}
+
+async function sctxChangeModel(s, sel) {
+  const newId = sel.value, newName = sel.options[sel.selectedIndex].text, prev = sel.dataset.prev;
+  closeSctx();
+  if (s.sid && newId !== prev) await promptCloudSaveBeforeSwitch(s.sid);
+  try {
+    if (s.sid) await patchSession(s.sid, { model_id: newId, model_name: newName });
+    s.model_id = newId;
+    if (s.sid) reconnectSession(s);
+  } catch (_) { s.model_id = prev; }
+}
+
+// Rename dialog (reuses the .rnm-* styles from mobile.html).
+function showRename(initial) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "rnm-overlay";
+    overlay.innerHTML = `<div class="rnm-card">
+      <div class="rnm-title">${esc(t("rename_title"))}</div>
+      <input class="rnm-input" type="text" />
+      <div class="rnm-actions">
+        <button id="rnm-cancel">${esc(t("rename_cancel"))}</button>
+        <button id="rnm-save">${esc(t("rename_save"))}</button>
+      </div></div>`;
+    document.body.appendChild(overlay);
+    const input = overlay.querySelector(".rnm-input");
+    input.value = initial || "";
+    requestAnimationFrame(() => { input.focus(); input.select(); });
+    const done = (v) => { overlay.remove(); resolve(v); };
+    overlay.querySelector("#rnm-cancel").onclick = () => done(null);
+    overlay.querySelector("#rnm-save").onclick = () => done(input.value);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); done(input.value); }
+      if (e.key === "Escape") { e.preventDefault(); done(null); }
+    });
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) done(null); });
+  });
+}
+
 // ---------- ⊞ Switcher ----------
-function openSwitcher() { closeMenu(); renderGrid(); $("hsheet").classList.remove("on"); $("sw").classList.add("on"); }
+function openSwitcher() { closeMenu(); closeSctx(); renderGrid(); $("hsheet").classList.remove("on"); $("sw").classList.add("on"); }
 function closeSwitcher() { $("sw").classList.remove("on"); $("hsheet").classList.remove("on"); }
 $("btn-grid").onclick = () => { if ($("sw").classList.contains("on")) closeSwitcher(); else openSwitcher(); };
 $("sw-close").onclick = () => closeSwitcher();
@@ -1108,7 +1270,8 @@ async function loadCloudStatus() {
 function stopCloudPoll() { if (_cloudPoll) { clearInterval(_cloudPoll); _cloudPoll = null; } }
 $("cloud-connect").onclick = async () => {
   const url = $("cloud-base-url").value.trim();
-  if (url) await fetch(`/api/cloud/base-url${tokenQs()}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ base_url: url }) }).catch(() => {});
+  if (!url) { cfgStatus(t("cloud_need_url"), "#e57373"); return; }
+  await fetch(`/api/cloud/base-url${tokenQs()}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ base_url: url }) }).catch(() => {});
   const r = await fetch(`/api/cloud/device/start${tokenQs()}`, { method: "POST" });
   if (!r.ok) { cfgStatus(t("cloud_err"), "#e57373"); return; }
   const d = await r.json();
@@ -1149,6 +1312,27 @@ async function cloudSaveActive() {
     flashCtx(t("cloud_saved").replace("{v}", body.version ?? "?"));
   } catch (e) { flashCtx(e.message || t("cloud_save_err")); }
 }
+
+/** Check if cloud is connected; if so, ask whether to save before model switch. */
+async function promptCloudSaveBeforeSwitch(sid) {
+  if (!sid) return true;
+  try {
+    const s = await fetch(`/api/cloud/status${tokenQs()}`).then((r) => r.json());
+    if (!s.bound) return true;
+  } catch (_) { return true; }
+  const save = await showConfirm(t("cloud_save_before_switch"), { okLabel: t("cloud_save_before_ok") });
+  if (!save) return true;
+  flashCtx(t("cloud_saving"));
+  try {
+    const r = await fetch(`/api/cloud/sync/${encodeURIComponent(sid)}${tokenQs()}`, { method: "POST" });
+    const body = await r.json().catch(() => ({}));
+    if (r.status === 400) { flashCtx(t("cloud_not_connected")); }
+    else if (!r.ok) { flashCtx(body.detail || t("cloud_save_err")); }
+    else { flashCtx(t("cloud_saved").replace("{v}", body.version ?? "?")); }
+  } catch (e) { flashCtx(e.message || t("cloud_save_err")); }
+  return true;
+}
+
 let _flashTimer = null;
 function flashCtx(text) {
   $("ctx-sub").textContent = text;

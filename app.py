@@ -19,6 +19,23 @@ from token_store import clear_saved_token, generate_token, save_token
 _STATIC = Path(__file__).parent / "static"
 
 
+class _RevalidateStatic(StaticFiles):
+    """StaticFiles that forces browser revalidation on every asset.
+
+    Without an explicit Cache-Control, browsers apply heuristic caching and may
+    serve a stale .js/.css from cache without revalidating — so after an upgrade
+    a fresh (no-store) HTML page can pull an old cached script, leaving newly
+    added handlers unbound (e.g. a visible button that "does nothing"). `no-cache`
+    means "always revalidate"; the existing ETag still yields cheap 304s when the
+    file is unchanged, so this costs a conditional request, not a full re-download.
+    """
+
+    def file_response(self, *args, **kwargs):
+        resp = super().file_response(*args, **kwargs)
+        resp.headers.setdefault("Cache-Control", "no-cache")
+        return resp
+
+
 def _sync_token_store(token: str) -> None:
     """Keep token_store in sync with the configured access_token.
 
@@ -165,5 +182,5 @@ def create_app(cfg: ServeConfig | None = None, store: SessionStore | None = None
     def mobile_index():
         return FileResponse(_STATIC / "mobile.html", headers=_NO_CACHE)
 
-    app.mount("/static", StaticFiles(directory=_STATIC), name="static")
+    app.mount("/static", _RevalidateStatic(directory=_STATIC), name="static")
     return app
